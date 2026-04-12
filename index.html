@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RenderAI — Ultra-Realistic Image Rendering Agent</title>
+  <meta name="description" content="Transform your ordinary images into ultra-realistic professional renders using Gemini AI." />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== SETUP SCREEN ===== -->
+  <div id="setup-screen" class="screen active">
+    <div class="setup-bg">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+    <div class="setup-card">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="28" height="20" viewBox="0 0 28 20" fill="none">
+            <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500"/>
+          </svg>
+        </div>
+        <span class="logo-text">VISO Render</span>
+      </div>
+      <h1 class="setup-title">Ultra-Realistic<br/><span class="gradient-text">Image Rendering</span></h1>
+      <p class="setup-subtitle">Transform ordinary photos into stunning professional renders with guided AI — one image at a time.</p>
+      <div class="feature-pills">
+        <span class="pill">Guided Workflow</span>
+        <span class="pill">Gemini Powered</span>
+        <span class="pill">4K Export</span>
+      </div>
+      <div class="api-form">
+        <label class="input-label">Gemini API Key</label>
+        <div class="input-wrap">
+          <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <input id="api-key-input" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+          <button id="toggle-key-vis" class="toggle-vis" title="Show/Hide Key">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <p class="input-hint">Your key is stored locally and never sent to any server.</p>
+        <button id="start-btn" class="btn-primary" disabled>
+          <span>Start Rendering</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <div id="setup-error" class="setup-error hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN APP ===== -->
+  <div id="app-screen" class="screen">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-logo">
+        <div class="logo-icon small">
+          <svg width="20" height="14" viewBox="0 0 28 20" fill="none">
+            <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500"/>
+          </svg>
+        </div>
+        <span>VISO Render</span>
+      </div>
+      <div class="header-status">
+        <div class="status-dot"></div>
+        <span id="header-status-text">Agent Ready</span>
+      </div>
+      <div class="header-actions">
+        <div id="image-counter-badge" class="counter-badge hidden">
+          <span id="image-count">0</span> rendered
+        </div>
+        <button id="new-session-btn" class="btn-ghost" title="New Session">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          New Session
+        </button>
+        <button id="change-key-btn" class="btn-ghost" title="Change API Key">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <main class="app-main">
+
+      <!-- LEFT PANEL: Image Preview -->
+      <section class="image-panel">
+
+        <!-- Upload Zone -->
+        <div id="upload-zone" class="upload-zone">
+          <input type="file" id="file-input" accept="image/*" hidden />
+          <div class="upload-content">
+            <div class="upload-icon-wrap">
+              <div class="upload-icon-ring"></div>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17,8 12,3 7,8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <h3 class="upload-title">Drop your image here</h3>
+            <p class="upload-sub">or <button id="browse-btn" class="link-btn">browse files</button></p>
+            <p class="upload-formats">JPG, PNG, WEBP · Max 20MB</p>
+            <div class="upload-tips">
+              <div class="tip-item"><span class="tip-icon">💡</span><span>Works great with products, portraits, interiors, and objects</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comparison View (hidden until render) -->
+        <div id="comparison-view" class="comparison-view hidden">
+          <div class="compare-header">
+            <div class="compare-tabs">
+              <button class="compare-tab active" data-tab="split" id="tab-split">Split</button>
+              <button class="compare-tab" data-tab="before" id="tab-before">Before</button>
+              <button class="compare-tab" data-tab="after" id="tab-after">After</button>
+            </div>
+            <button id="download-btn" class="btn-download" title="Download Render">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download
+            </button>
+          </div>
+
+          <!-- Split View -->
+          <div id="split-view" class="split-container">
+            <div class="split-images">
+              <img id="before-img-split" class="split-img" alt="Original" />
+              <img id="after-img-split" class="split-img rendered" alt="Rendered" />
+              <div class="split-divider" id="split-divider">
+                <div class="divider-line"></div>
+                <div class="divider-handle">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3l-5 9 5 9"/><path d="M16 3l5 9-5 9"/></svg>
+                </div>
+              </div>
+              <div class="split-label left">Original</div>
+              <div class="split-label right">Rendered</div>
+            </div>
+          </div>
+
+          <!-- Single Views -->
+          <div id="before-view" class="single-view hidden">
+            <img id="before-img-single" alt="Original" />
+            <div class="single-label">Original</div>
+          </div>
+          <div id="after-view" class="single-view hidden">
+            <img id="after-img-single" alt="Rendered" />
+            <div class="single-label gradient-bg-label">AI Render</div>
+          </div>
+
+          <!-- Render Meta -->
+          <div class="render-meta">
+            <div class="meta-item" id="render-subject-meta"></div>
+            <div class="meta-dot"></div>
+            <div class="meta-item" id="render-bg-meta"></div>
+            <div class="meta-dot"></div>
+            <div class="meta-item" id="render-style-meta"></div>
+          </div>
+        </div>
+
+        <!-- Processing State -->
+        <div id="processing-view" class="processing-view hidden">
+          <div class="processing-visual">
+            <canvas id="processing-canvas" width="180" height="180"></canvas>
+          </div>
+          <div class="processing-text">
+            <h3 id="processing-title">Generating Ultra-Realistic Render</h3>
+            <p id="processing-sub">Enhancing lighting, textures & depth...</p>
+          </div>
+          <div class="processing-steps">
+            <div class="proc-step active" id="ps-1"><div class="ps-dot"></div><span>Analyzing subject</span></div>
+            <div class="proc-step" id="ps-2"><div class="ps-dot"></div><span>Crafting prompt</span></div>
+            <div class="proc-step" id="ps-3"><div class="ps-dot"></div><span>Rendering with Gemini</span></div>
+            <div class="proc-step" id="ps-4"><div class="ps-dot"></div><span>Finalizing output</span></div>
+          </div>
+        </div>
+
+        <!-- Annotation Overlay (drawing canvas) -->
+        <div id="annotation-overlay" class="annotation-overlay hidden">
+          <canvas id="annotation-canvas"></canvas>
+        </div>
+
+        <!-- Gemini-style Drawing Toolbar -->
+        <div id="drawing-toolbar" class="drawing-toolbar hidden">
+          <div class="dtb-row dtb-colors">
+            <button class="dtb-color active" data-color="#FF3B30" style="background:#FF3B30" title="Red"></button>
+            <button class="dtb-color" data-color="#FF9500" style="background:#FF9500" title="Orange"></button>
+            <button class="dtb-color" data-color="#34C759" style="background:#34C759" title="Green"></button>
+            <button class="dtb-color" data-color="#007AFF" style="background:#007AFF" title="Blue"></button>
+            <button class="dtb-color" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></button>
+          </div>
+          <div class="dtb-row dtb-tools">
+            <button class="dtb-tool active" id="dtb-pen" title="Pen">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+            <button class="dtb-tool" id="dtb-eraser" title="Eraser">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 20H7L3 16l10-10 7 7-3.5 3.5"/><path d="M6.5 17.5l4-4"/></svg>
+            </button>
+            <button class="dtb-tool" id="dtb-clear" title="Clear all">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8,6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT PANEL: Chat Agent -->
+      <section class="chat-panel">
+
+        <div class="chat-header">
+          <div class="agent-avatar">
+            <svg width="16" height="12" viewBox="0 0 28 20" fill="none">
+              <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500"/>
+            </svg>
+          </div>
+          <div>
+            <div class="agent-name">Render Agent</div>
+            <div class="agent-online"><span class="online-dot"></span>Online</div>
+          </div>
+          <div class="chat-image-thumb-wrap">
+            <img id="chat-thumb" class="chat-thumb hidden" alt="Current image" />
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chat-messages">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-input-area" id="chat-input-area">
+
+          <!-- Quick Choice Grid -->
+          <div id="quick-choices" class="quick-choices hidden"></div>
+
+          <!-- ── Color Picker Card (replaces background step) ── -->
+          <div id="color-picker-card" class="color-picker-card hidden">
+            <div class="cp-label">Background Color</div>
+            <div class="cp-presets">
+              <button class="cp-swatch" data-color="#FFEEDC" title="Warm Cream" style="background:#FFEEDC"></button>
+              <button class="cp-swatch" data-color="#FFFFFF" title="Pure White" style="background:#FFFFFF"></button>
+              <button class="cp-swatch" data-color="#F5F5F0" title="Off White" style="background:#F5F5F0"></button>
+              <button class="cp-swatch" data-color="#E8EDF2" title="Cool Grey" style="background:#E8EDF2"></button>
+              <button class="cp-swatch" data-color="#FFF8E7" title="Warm White" style="background:#FFF8E7"></button>
+              <button class="cp-swatch" data-color="#0D0D0D" title="Black" style="background:#0D0D0D"></button>
+              <button class="cp-swatch" data-color="#1A2332" title="Navy" style="background:#1A2332"></button>
+              <button class="cp-swatch cp-custom-trigger" title="Custom color">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <input type="color" id="bg-color-input" value="#FFEEDC" tabindex="-1"/>
+              </button>
+            </div>
+            <div class="cp-bottom">
+              <div class="cp-preview-wrap">
+                <div id="cp-preview-swatch" class="cp-preview-swatch" style="background:#FFEEDC"></div>
+                <span id="cp-hex-display" class="cp-hex">#FFEEDC</span>
+              </div>
+              <button id="cp-confirm-btn" class="btn-action primary cp-confirm">
+                Use This Color →
+              </button>
+            </div>
+          </div>
+
+          <!-- ── Upscale + Template Picker ── -->
+          <div id="upscale-picker" class="upscale-picker hidden">
+            <div class="up-header">
+              <span class="up-title">Upscale &amp; Export</span>
+              <span class="tp-badge">VISO</span>
+            </div>
+
+            <!-- Resolution -->
+            <div class="up-section">
+              <div class="up-section-label">Resolution</div>
+              <div class="up-res-grid">
+                <button class="up-res-btn" data-res="2k">
+                  <span class="up-res-name">2K</span>
+                  <span class="up-res-dim">2048 &times; 1280</span>
+                </button>
+                <button class="up-res-btn active" data-res="4k">
+                  <span class="up-res-name">4K</span>
+                  <span class="up-res-dim">3840 &times; 2160</span>
+                </button>
+                <button class="up-res-btn" data-res="8k">
+                  <span class="up-res-name">8K</span>
+                  <span class="up-res-dim">7680 &times; 4320</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Template -->
+            <div class="up-section">
+              <div class="up-section-label">Overlay Template</div>
+              <div class="up-tp-grid">
+                <button class="up-tp-card active" data-template="none">
+                  <div class="up-tp-thumb up-tp-none">None</div>
+                  <span class="up-tp-name">Raw</span>
+                </button>
+                <button class="up-tp-card" data-template="dark">
+                  <div class="up-tp-thumb up-tp-dark">
+                    <span class="up-tp-label">Dark</span>
+                  </div>
+                  <span class="up-tp-name">Dark Text</span>
+                </button>
+                <button class="up-tp-card" data-template="white">
+                  <div class="up-tp-thumb up-tp-white">
+                    <span class="up-tp-label">White</span>
+                  </div>
+                  <span class="up-tp-name">White Text</span>
+                </button>
+              </div>
+            </div>
+
+            <button id="up-export-btn" class="btn-action primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+          </div>
+
+          <!-- Text Input Row -->
+          <div id="text-input-row" class="text-input-row hidden">
+            <div class="text-input-wrap">
+              <textarea id="chat-input" placeholder="Type your response..." rows="1" maxlength="500"></textarea>
+              <span class="char-count" id="char-count">0/500</span>
+            </div>
+            <button id="send-btn" class="send-btn" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+            </button>
+          </div>
+
+          <!-- Action Buttons (post-render) -->
+          <div id="action-btns" class="action-btns hidden">
+            <!-- Row 1: Preview + Download -->
+            <div class="action-btns-row">
+              <button id="preview-btn" class="btn-action secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Preview
+              </button>
+              <button id="chat-download-btn" class="btn-action secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download
+              </button>
+            </div>
+            <!-- Row 2: Upscale & Export (full width, prominent) -->
+            <div class="action-btns-row">
+              <button id="upscale-btn" class="btn-action teal" style="width:100%">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17,11 12,6 7,11"/><polyline points="17,18 12,13 7,18"/></svg>
+                Upscale &amp; Export
+              </button>
+            </div>
+            <!-- Row 3: Adjust + Next Image -->
+            <div class="action-btns-row">
+              <button id="adjust-btn" class="btn-action secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                Adjustments
+              </button>
+              <button id="next-image-btn" class="btn-action primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Next
+              </button>
+            </div>
+            <!-- Row 4: Back to first render (only after adjustment) -->
+            <div id="back-original-row" class="action-btns-row hidden">
+              <button id="back-original-btn" class="btn-action back">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15,18 9,12 15,6"/></svg>
+                Back to First Render
+              </button>
+            </div>
+          </div>
+
+          <!-- Adjustment Input -->
+          <div id="adjustment-row" class="adjustment-row hidden">
+            <div class="text-input-wrap">
+              <textarea id="adjustment-input" placeholder="Describe what to change (e.g., make lighting warmer, change background to sunset)..." rows="2" maxlength="600"></textarea>
+            </div>
+            <div class="adj-buttons">
+              <button id="cancel-adj-btn" class="btn-ghost small">Cancel</button>
+              <button id="apply-adj-btn" class="btn-primary small">Apply Changes</button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast hidden">
+    <span id="toast-msg"></span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
