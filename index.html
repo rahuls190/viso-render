@@ -10,13 +10,9 @@
 </head>
 <body>
 
-  <!-- ===== SETUP SCREEN ===== -->
+  <!-- ===== SETUP SCREEN (Auth) ===== -->
   <div id="setup-screen" class="screen active">
-    <div class="setup-bg">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
+
     <div class="setup-card">
       <div class="logo">
         <div class="logo-icon">
@@ -32,23 +28,89 @@
         <span class="pill">Guided Workflow</span>
         <span class="pill">Gemini Powered</span>
         <span class="pill">4K Export</span>
+        <span class="pill">AI Learning</span>
       </div>
-      <div class="api-form">
-        <label class="input-label">Gemini API Key</label>
-        <div class="input-wrap">
-          <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input id="api-key-input" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
-          <button id="toggle-key-vis" class="toggle-vis" title="Show/Hide Key">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
+
+      <!-- Auth Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-auth-tab="signin" id="auth-tab-signin">Sign In</button>
+        <button class="auth-tab" data-auth-tab="signup" id="auth-tab-signup">Sign Up</button>
+      </div>
+
+      <!-- Sign In Form -->
+      <div id="auth-signin-form" class="auth-form">
+        <div class="auth-field">
+          <label class="input-label">Email</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <input id="signin-email" type="email" placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+          </div>
         </div>
-        <p class="input-hint">Your key is stored locally and never sent to any server.</p>
-        <button id="start-btn" class="btn-primary" disabled>
-          <span>Start Rendering</span>
+        <div class="auth-field">
+          <label class="input-label">Password</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input id="signin-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+            <button id="toggle-signin-vis" class="toggle-vis" title="Show/Hide">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <label class="auth-remember"><input type="checkbox" id="signin-remember" checked /> Remember me</label>
+        <button id="signin-btn" class="btn-primary">
+          <span>Sign In</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
-        <div id="setup-error" class="setup-error hidden"></div>
       </div>
+
+      <!-- Sign Up Form -->
+      <div id="auth-signup-form" class="auth-form hidden">
+        <div class="auth-field">
+          <label class="input-label">Full Name</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input id="signup-name" type="text" placeholder="Your name" autocomplete="name" spellcheck="false" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="input-label">Email</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <input id="signup-email" type="email" placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="input-label">Password</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input id="signup-password" type="password" placeholder="Min 6 characters" autocomplete="new-password" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="input-label">Confirm Password</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input id="signup-confirm" type="password" placeholder="Repeat password" autocomplete="new-password" />
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="input-label">Gemini API Key</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            <input id="signup-apikey" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+            <button id="toggle-signup-key-vis" class="toggle-vis" title="Show/Hide Key">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <p class="input-hint">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank" class="hint-link">aistudio.google.com</a></p>
+        </div>
+        <button id="signup-btn" class="btn-primary">
+          <span>Create Account</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <div id="setup-error" class="setup-error hidden"></div>
     </div>
   </div>
 
@@ -73,12 +135,18 @@
         <div id="image-counter-badge" class="counter-badge hidden">
           <span id="image-count">0</span> rendered
         </div>
+        <button id="profile-btn" class="user-greeting hidden" title="Open Profile">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="user-name-display"></span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="opacity:.5"><polyline points="6,9 12,15 18,9"/></svg>
+        </button>
         <button id="new-session-btn" class="btn-ghost" title="New Session">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
           New Session
         </button>
-        <button id="change-key-btn" class="btn-ghost" title="Change API Key">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <button id="logout-btn" class="btn-ghost" title="Sign Out">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign Out
         </button>
       </div>
     </header>
@@ -235,9 +303,20 @@
           <!-- Quick Choice Grid -->
           <div id="quick-choices" class="quick-choices hidden"></div>
 
-          <!-- ── Color Picker Card (replaces background step) ── -->
+          <!-- ── Full Color Picker Card ── -->
           <div id="color-picker-card" class="color-picker-card hidden">
             <div class="cp-label">Background Color</div>
+            <!-- Gradient area (saturation × value) -->
+            <div class="cp-gradient-wrap" id="cp-gradient-wrap">
+              <canvas id="cp-gradient" class="cp-gradient" width="260" height="150"></canvas>
+              <div id="cp-cursor" class="cp-cursor"></div>
+            </div>
+            <!-- Hue slider -->
+            <div class="cp-hue-wrap" id="cp-hue-wrap">
+              <canvas id="cp-hue-bar" class="cp-hue-bar" width="260" height="14"></canvas>
+              <div id="cp-hue-cursor" class="cp-hue-cursor"></div>
+            </div>
+            <!-- Preset swatches -->
             <div class="cp-presets">
               <button class="cp-swatch" data-color="#FFEEDC" title="Warm Cream" style="background:#FFEEDC"></button>
               <button class="cp-swatch" data-color="#FFFFFF" title="Pure White" style="background:#FFFFFF"></button>
@@ -246,15 +325,29 @@
               <button class="cp-swatch" data-color="#FFF8E7" title="Warm White" style="background:#FFF8E7"></button>
               <button class="cp-swatch" data-color="#0D0D0D" title="Black" style="background:#0D0D0D"></button>
               <button class="cp-swatch" data-color="#1A2332" title="Navy" style="background:#1A2332"></button>
-              <button class="cp-swatch cp-custom-trigger" title="Custom color">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-                <input type="color" id="bg-color-input" value="#FFEEDC" tabindex="-1"/>
+              <button class="cp-swatch" data-color="#C23B22" title="Red" style="background:#C23B22"></button>
+              <button class="cp-swatch" data-color="#2E8B57" title="Green" style="background:#2E8B57"></button>
+              <button class="cp-swatch" data-color="#4169E1" title="Blue" style="background:#4169E1"></button>
+            </div>
+            <!-- My Palette (user-saved colors) -->
+            <div class="cp-my-palette">
+              <div class="cp-palette-header">
+                <span class="cp-label">My Palette</span>
+                <span class="cp-palette-count" id="cp-palette-count">0/20</span>
+              </div>
+              <div class="cp-palette-swatches" id="cp-palette-swatches">
+                <!-- Dynamically populated by JS -->
+              </div>
+              <button id="cp-save-color-btn" class="cp-save-btn" title="Save current color to palette">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Save Color
               </button>
             </div>
+            <!-- Hex input + preview -->
             <div class="cp-bottom">
               <div class="cp-preview-wrap">
                 <div id="cp-preview-swatch" class="cp-preview-swatch" style="background:#FFEEDC"></div>
-                <span id="cp-hex-display" class="cp-hex">#FFEEDC</span>
+                <input type="text" id="cp-hex-input" class="cp-hex-input" value="#FFEEDC" maxlength="7" spellcheck="false" />
               </div>
               <button id="cp-confirm-btn" class="btn-action primary cp-confirm">
                 Use This Color →
@@ -383,6 +476,72 @@
       </section>
 
     </main>
+  </div>
+
+  <!-- ===== PROFILE PANEL ===== -->
+  <div id="profile-overlay" class="profile-overlay hidden">
+    <div class="profile-panel">
+      <div class="profile-header">
+        <h2 class="profile-title">My Profile</h2>
+        <button id="profile-close-btn" class="profile-close" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- User Info -->
+      <div class="profile-section">
+        <div class="profile-avatar" id="profile-avatar">U</div>
+        <div class="profile-info">
+          <div class="profile-name" id="profile-name">—</div>
+          <div class="profile-email" id="profile-email">—</div>
+          <div class="profile-joined" id="profile-joined">—</div>
+        </div>
+      </div>
+
+      <!-- API Key -->
+      <div class="profile-section">
+        <div class="profile-section-label">API Key</div>
+        <div class="profile-key-row">
+          <input type="password" id="profile-api-key" class="profile-key-input" readonly />
+          <button id="profile-key-toggle" class="profile-key-btn" title="Show/Hide">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button id="profile-key-edit" class="profile-key-btn" title="Edit Key">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </button>
+          <button id="profile-key-save" class="profile-key-btn accent hidden" title="Save Key">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="profile-section">
+        <div class="profile-section-label">Render Stats</div>
+        <div class="profile-stats">
+          <div class="profile-stat">
+            <span class="stat-value" id="profile-stat-renders">0</span>
+            <span class="stat-label">Renders</span>
+          </div>
+          <div class="profile-stat">
+            <span class="stat-value" id="profile-stat-colors">0</span>
+            <span class="stat-label">Saved Colors</span>
+          </div>
+          <div class="profile-stat">
+            <span class="stat-value" id="profile-stat-style">—</span>
+            <span class="stat-label">Top Style</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Render History Gallery -->
+      <div class="profile-section">
+        <div class="profile-section-label">Render History</div>
+        <div class="profile-gallery" id="profile-gallery">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Notification Toast -->

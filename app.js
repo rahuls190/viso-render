@@ -1,6 +1,7 @@
 /* ===================================================
    RenderAI — Agent Application Logic
    Uses Gemini API for ultra-realistic image rendering
+   Features: User accounts, preferences, AI learning
 =================================================== */
 
 // ──────────────────────────────────────────────────
@@ -13,14 +14,152 @@ const GEMINI_MODELS = [
 ];
 
 // ──────────────────────────────────────────────────
+//  UserDB — localStorage-based user management
+// ──────────────────────────────────────────────────
+const UserDB = {
+  USERS_KEY: 'viso_users',
+  SESSION_KEY: 'viso_session',
+  MAX_PALETTE: 20,
+  MAX_HISTORY: 50,
+
+  async hash(str) {
+    const data = new TextEncoder().encode(str);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  _getAll() {
+    try { return JSON.parse(localStorage.getItem(this.USERS_KEY)) || {}; }
+    catch { return {}; }
+  },
+  _saveAll(users) { localStorage.setItem(this.USERS_KEY, JSON.stringify(users)); },
+
+  getUser(email) { return this._getAll()[email.toLowerCase()] || null; },
+
+  async createUser(name, email, password, apiKey) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    if (users[email]) throw new Error('An account with this email already exists.');
+    users[email] = {
+      name,
+      passwordHash: await this.hash(password),
+      apiKey,
+      createdAt: Date.now(),
+      prefs: { defaultBgColor: '#FFEEDC', defaultStyle: '', upscaleResolution: '4k', selectedTemplate: 'none' },
+      palette: [],
+      renderHistory: [],
+    };
+    this._saveAll(users);
+    return users[email];
+  },
+
+  async verifyPassword(email, password) {
+    const user = this.getUser(email);
+    if (!user) return false;
+    return user.passwordHash === await this.hash(password);
+  },
+
+  updateUser(email, updates) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    if (!users[email]) return;
+    Object.assign(users[email], updates);
+    this._saveAll(users);
+  },
+
+  updatePrefs(email, prefs) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    if (!users[email]) return;
+    Object.assign(users[email].prefs, prefs);
+    this._saveAll(users);
+  },
+
+  getPalette(email) { return this.getUser(email)?.palette || []; },
+
+  addToPalette(email, hex) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    const user = users[email];
+    if (!user) return;
+    hex = hex.toUpperCase();
+    if (user.palette.includes(hex)) return;
+    if (user.palette.length >= this.MAX_PALETTE) user.palette.shift();
+    user.palette.push(hex);
+    this._saveAll(users);
+  },
+
+  removeFromPalette(email, hex) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    const user = users[email];
+    if (!user) return;
+    user.palette = user.palette.filter(c => c !== hex.toUpperCase());
+    this._saveAll(users);
+  },
+
+  addRenderHistory(email, entry) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    const user = users[email];
+    if (!user) return;
+    user.renderHistory.push({ ts: Date.now(), ...entry });
+    if (user.renderHistory.length > this.MAX_HISTORY) {
+      user.renderHistory = user.renderHistory.slice(-this.MAX_HISTORY);
+    }
+    this._saveAll(users);
+  },
+
+  getRenderHistory(email) { return this.getUser(email)?.renderHistory || []; },
+
+  getLearnedInsights(email, currentSubject) {
+    const history = this.getRenderHistory(email);
+    if (history.length < 2) return null;
+    const subjectWords = currentSubject.toLowerCase().split(/\s+/);
+    const similar = history.filter(h => {
+      const hWords = (h.subject || '').toLowerCase().split(/\s+/);
+      return subjectWords.some(w => w.length > 2 && hWords.includes(w));
+    });
+    const styleCounts = {};
+    history.forEach(h => { if (h.style) { const l = h.style.split(' ').slice(0, 3).join(' '); styleCounts[l] = (styleCounts[l] || 0) + 1; } });
+    const topStyle = Object.entries(styleCounts).sort((a, b) => b[1] - a[1])[0];
+    const colorCounts = {};
+    history.forEach(h => { if (h.bgColor) colorCounts[h.bgColor] = (colorCounts[h.bgColor] || 0) + 1; });
+    const topColor = Object.entries(colorCounts).sort((a, b) => b[1] - a[1])[0];
+    return { totalRenders: history.length, similarRenders: similar.length, topStyle: topStyle?.[0], topColor: topColor?.[0], similarDetails: similar.slice(-3) };
+  },
+
+  saveSession(email, rememberMe) {
+    const data = { email: email.toLowerCase(), rememberMe };
+    if (rememberMe) localStorage.setItem(this.SESSION_KEY, JSON.stringify(data));
+    else sessionStorage.setItem(this.SESSION_KEY, JSON.stringify(data));
+  },
+
+  getSession() {
+    try { return JSON.parse(localStorage.getItem(this.SESSION_KEY)) || JSON.parse(sessionStorage.getItem(this.SESSION_KEY)) || null; }
+    catch { return null; }
+  },
+
+  clearSession() {
+    localStorage.removeItem(this.SESSION_KEY);
+    sessionStorage.removeItem(this.SESSION_KEY);
+  },
+};
+
+// ──────────────────────────────────────────────────
 //  State
 // ──────────────────────────────────────────────────
 const STATE = {
   apiKey: '',
+  userEmail: null,               // logged-in user email
+  userName: null,                // logged-in user name
   phase: 'idle',
   currentImage: null,
   renderedUrl: null,
+  renderedDisplayUrl: null,          // downscaled version for UI display
+  rawRenderedUrl: null,              // original Gemini output (pre-4K), for efficient re-renders
   originalRenderedUrl: null,    // first render for this image (for "back" option)
+  originalDisplayUrl: null,     // display version of first render
   composedUrl: null,
   session: { subject: '', bgColor: '#FFEEDC', style: '' },
   selectedTemplate: 'none',     // 'none' | 'dark' | 'white'
@@ -48,16 +187,31 @@ const $ = (id) => document.getElementById(id);
 const el = {
   setupScreen: $('setup-screen'),
   appScreen: $('app-screen'),
-  apiKeyInput: $('api-key-input'),
-  toggleKeyVis: $('toggle-key-vis'),
-  startBtn: $('start-btn'),
   setupError: $('setup-error'),
+  // auth
+  authTabSignin: $('auth-tab-signin'),
+  authTabSignup: $('auth-tab-signup'),
+  authSigninForm: $('auth-signin-form'),
+  authSignupForm: $('auth-signup-form'),
+  signinEmail: $('signin-email'),
+  signinPassword: $('signin-password'),
+  signinRemember: $('signin-remember'),
+  signinBtn: $('signin-btn'),
+  toggleSigninVis: $('toggle-signin-vis'),
+  signupName: $('signup-name'),
+  signupEmail: $('signup-email'),
+  signupPassword: $('signup-password'),
+  signupConfirm: $('signup-confirm'),
+  signupApikey: $('signup-apikey'),
+  signupBtn: $('signup-btn'),
+  toggleSignupKeyVis: $('toggle-signup-key-vis'),
   // header
   headerStatusText: $('header-status-text'),
   imageCounterBadge: $('image-counter-badge'),
   imageCount: $('image-count'),
   newSessionBtn: $('new-session-btn'),
-  changeKeyBtn: $('change-key-btn'),
+  logoutBtn: $('logout-btn'),
+  userNameDisplay: $('user-name-display'),
   // panels
   uploadZone: $('upload-zone'),
   fileInput: $('file-input'),
@@ -105,16 +259,19 @@ const el = {
   applyAdjBtn: $('apply-adj-btn'),
   // color picker
   colorPickerCard: $('color-picker-card'),
-  bgColorInput: $('bg-color-input'),
+  cpGradientWrap: $('cp-gradient-wrap'),
+  cpGradient: $('cp-gradient'),
+  cpCursor: $('cp-cursor'),
+  cpHueWrap: $('cp-hue-wrap'),
+  cpHueBar: $('cp-hue-bar'),
+  cpHueCursor: $('cp-hue-cursor'),
   cpPreviewSwatch: $('cp-preview-swatch'),
-  cpHexDisplay: $('cp-hex-display'),
+  cpHexInput: $('cp-hex-input'),
   cpConfirmBtn: $('cp-confirm-btn'),
-  // template picker
-  templatePicker: $('template-picker'),
-  tpExportBtn: $('tp-export-btn'),
-  tpExportActions: $('tp-export-actions'),
-  tpWorkflowActions: $('tp-workflow-actions'),
-  tpWorkflowBtn: $('tp-workflow-btn'),
+  // palette
+  cpPaletteSwatches: $('cp-palette-swatches'),
+  cpPaletteCount: $('cp-palette-count'),
+  cpSaveColorBtn: $('cp-save-color-btn'),
   // upscale picker
   upscalePicker: $('upscale-picker'),
   upscaleBtn: $('upscale-btn'),
@@ -127,34 +284,129 @@ const el = {
   drawingToolbar: $('drawing-toolbar'),
   toast: $('toast'),
   toastMsg: $('toast-msg'),
+  // profile panel
+  profileBtn: $('profile-btn'),
+  profileOverlay: $('profile-overlay'),
+  profileCloseBtn: $('profile-close-btn'),
+  profileAvatar: $('profile-avatar'),
+  profileName: $('profile-name'),
+  profileEmail: $('profile-email'),
+  profileJoined: $('profile-joined'),
+  profileApiKey: $('profile-api-key'),
+  profileKeyToggle: $('profile-key-toggle'),
+  profileKeyEdit: $('profile-key-edit'),
+  profileKeySave: $('profile-key-save'),
+  profileStatRenders: $('profile-stat-renders'),
+  profileStatColors: $('profile-stat-colors'),
+  profileStatStyle: $('profile-stat-style'),
+  profileGallery: $('profile-gallery'),
 };
 
 // ──────────────────────────────────────────────────
-//  Setup Screen
+//  Auth Screen — Sign In / Sign Up
 // ──────────────────────────────────────────────────
-el.apiKeyInput.addEventListener('input', () => {
-  const val = el.apiKeyInput.value.trim();
-  el.startBtn.disabled = val.length < 10;
-  el.setupError.classList.add('hidden');
+
+// Tab switching
+[el.authTabSignin, el.authTabSignup].forEach(tab => {
+  tab.addEventListener('click', () => {
+    const isSignin = tab.dataset.authTab === 'signin';
+    el.authTabSignin.classList.toggle('active', isSignin);
+    el.authTabSignup.classList.toggle('active', !isSignin);
+    el.authSigninForm.classList.toggle('hidden', !isSignin);
+    el.authSignupForm.classList.toggle('hidden', isSignin);
+    el.setupError.classList.add('hidden');
+  });
 });
 
-el.toggleKeyVis.addEventListener('click', () => {
-  const isPass = el.apiKeyInput.type === 'password';
-  el.apiKeyInput.type = isPass ? 'text' : 'password';
+// Toggle password visibility
+el.toggleSigninVis.addEventListener('click', () => {
+  const inp = el.signinPassword;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+});
+el.toggleSignupKeyVis.addEventListener('click', () => {
+  const inp = el.signupApikey;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
 });
 
-el.startBtn.addEventListener('click', () => {
-  const key = el.apiKeyInput.value.trim();
-  if (key.length < 10) return;
-  STATE.apiKey = key;
-  localStorage.setItem('renderai_key', key);
-  launchApp();
+// Sign In
+el.signinBtn.addEventListener('click', async () => {
+  const email = el.signinEmail.value.trim();
+  const pass = el.signinPassword.value;
+  if (!email || !pass) { showSetupError('Please fill in all fields.'); return; }
+
+  el.signinBtn.disabled = true;
+  el.signinBtn.querySelector('span').textContent = 'Signing in…';
+  try {
+    const valid = await UserDB.verifyPassword(email, pass);
+    if (!valid) { showSetupError('Invalid email or password.'); return; }
+    const user = UserDB.getUser(email);
+    STATE.apiKey = user.apiKey;
+    STATE.userEmail = email.toLowerCase();
+    STATE.userName = user.name;
+    if (user.prefs) {
+      STATE.session.bgColor = user.prefs.defaultBgColor || '#FFEEDC';
+      STATE.upscaleResolution = user.prefs.upscaleResolution || '4k';
+      STATE.selectedTemplate = user.prefs.selectedTemplate || 'none';
+    }
+    UserDB.saveSession(email, el.signinRemember.checked);
+    launchApp();
+  } catch (err) {
+    showSetupError(err.message);
+  } finally {
+    el.signinBtn.disabled = false;
+    el.signinBtn.querySelector('span').textContent = 'Sign In';
+  }
 });
 
-el.changeKeyBtn.addEventListener('click', () => {
+// Sign Up
+el.signupBtn.addEventListener('click', async () => {
+  const name = el.signupName.value.trim();
+  const email = el.signupEmail.value.trim();
+  const pass = el.signupPassword.value;
+  const confirm = el.signupConfirm.value;
+  const apiKey = el.signupApikey.value.trim();
+
+  if (!name || !email || !pass || !apiKey) { showSetupError('Please fill in all fields.'); return; }
+  if (!email.includes('@')) { showSetupError('Please enter a valid email.'); return; }
+  if (pass.length < 6) { showSetupError('Password must be at least 6 characters.'); return; }
+  if (pass !== confirm) { showSetupError('Passwords do not match.'); return; }
+  if (apiKey.length < 10) { showSetupError('Please enter a valid Gemini API key.'); return; }
+
+  el.signupBtn.disabled = true;
+  el.signupBtn.querySelector('span').textContent = 'Creating…';
+  try {
+    await UserDB.createUser(name, email, pass, apiKey);
+    STATE.apiKey = apiKey;
+    STATE.userEmail = email.toLowerCase();
+    STATE.userName = name;
+    UserDB.saveSession(email, true);
+    showToast('Account created! Welcome, ' + name + ' 🎉');
+    launchApp();
+  } catch (err) {
+    showSetupError(err.message);
+  } finally {
+    el.signupBtn.disabled = false;
+    el.signupBtn.querySelector('span').textContent = 'Create Account';
+  }
+});
+
+// Enter key on auth inputs
+document.querySelectorAll('#auth-signin-form input').forEach(inp => {
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') el.signinBtn.click(); });
+});
+document.querySelectorAll('#auth-signup-form input').forEach(inp => {
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') el.signupBtn.click(); });
+});
+
+// Logout
+el.logoutBtn.addEventListener('click', () => {
+  UserDB.clearSession();
+  STATE.apiKey = '';
+  STATE.userEmail = null;
+  STATE.userName = null;
+  el.profileBtn.classList.add('hidden');
   switchScreen('setup');
-  el.apiKeyInput.value = STATE.apiKey;
-  el.startBtn.disabled = false;
+  showToast('Signed out');
 });
 
 el.newSessionBtn.addEventListener('click', () => {
@@ -164,16 +416,205 @@ el.newSessionBtn.addEventListener('click', () => {
 });
 
 function launchApp() {
+  if (STATE.userName) {
+    el.userNameDisplay.textContent = STATE.userName;
+    el.profileBtn.classList.remove('hidden');
+  }
   switchScreen('app');
   resetSession(true);
 }
 
-// Try restoring saved key
-const savedKey = localStorage.getItem('renderai_key');
-if (savedKey) {
-  el.apiKeyInput.value = savedKey;
-  el.startBtn.disabled = false;
+function showSetupError(msg) {
+  el.setupError.textContent = msg;
+  el.setupError.classList.remove('hidden');
+  setTimeout(() => el.setupError.classList.add('hidden'), 6000);
 }
+
+// ── Custom Palette Rendering ──
+function renderUserPalette() {
+  if (!STATE.userEmail) return;
+  const palette = UserDB.getPalette(STATE.userEmail);
+  el.cpPaletteSwatches.innerHTML = '';
+  palette.forEach(hex => {
+    const swatch = document.createElement('button');
+    swatch.className = 'cp-palette-swatch';
+    swatch.style.background = hex;
+    swatch.title = hex;
+    swatch.innerHTML = `<span class="swatch-remove" title="Remove">×</span>`;
+    // Click swatch = use color
+    swatch.addEventListener('click', (e) => {
+      if (e.target.classList.contains('swatch-remove')) {
+        UserDB.removeFromPalette(STATE.userEmail, hex);
+        renderUserPalette();
+        showToast(`Removed ${hex} from palette`);
+        return;
+      }
+      const hsv = hexToHsv(hex);
+      CP.hue = hsv.h; CP.sat = hsv.s; CP.val = hsv.v;
+      drawGradient(); syncCPUI();
+    });
+    el.cpPaletteSwatches.appendChild(swatch);
+  });
+  el.cpPaletteCount.textContent = `${palette.length}/${UserDB.MAX_PALETTE}`;
+}
+
+// Save color button
+el.cpSaveColorBtn.addEventListener('click', () => {
+  if (!STATE.userEmail) { showToast('Sign in to save colors'); return; }
+  const hex = hsvToHex(CP.hue, CP.sat, CP.val);
+  UserDB.addToPalette(STATE.userEmail, hex);
+  renderUserPalette();
+  showToast(`Saved ${hex} to palette ✨`);
+});
+
+// ── Auto-login on page load ──
+(async function autoLogin() {
+  const session = UserDB.getSession();
+  if (!session?.email) return;
+  const user = UserDB.getUser(session.email);
+  if (!user) { UserDB.clearSession(); return; }
+  STATE.apiKey = user.apiKey;
+  STATE.userEmail = session.email;
+  STATE.userName = user.name;
+  if (user.prefs) {
+    STATE.session.bgColor = user.prefs.defaultBgColor || '#FFEEDC';
+    STATE.upscaleResolution = user.prefs.upscaleResolution || '4k';
+    STATE.selectedTemplate = user.prefs.selectedTemplate || 'none';
+  }
+  launchApp();
+})();
+
+// ──────────────────────────────────────────────────
+//  Profile Panel
+// ──────────────────────────────────────────────────
+function openProfile() {
+  if (!STATE.userEmail) return;
+  const user = UserDB.getUser(STATE.userEmail);
+  if (!user) return;
+
+  // Populate user info
+  el.profileAvatar.textContent = (user.name || 'U').charAt(0).toUpperCase();
+  el.profileName.textContent = user.name || '—';
+  el.profileEmail.textContent = STATE.userEmail;
+  el.profileJoined.textContent = user.createdAt
+    ? `Joined ${new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`
+    : '';
+
+  // API Key
+  el.profileApiKey.value = user.apiKey || '';
+  el.profileApiKey.type = 'password';
+  el.profileApiKey.readOnly = true;
+  el.profileKeySave.classList.add('hidden');
+  el.profileKeyEdit.classList.remove('hidden');
+
+  // Stats
+  const history = user.renderHistory || [];
+  el.profileStatRenders.textContent = history.length;
+  el.profileStatColors.textContent = (user.palette || []).length;
+
+  // Top style
+  if (history.length > 0) {
+    const styleCounts = {};
+    history.forEach(h => {
+      if (h.style) {
+        // Extract short label from style string
+        const parts = h.style.split(' ');
+        const label = parts.length > 1 ? parts.slice(0, 2).join(' ') : parts[0];
+        styleCounts[label] = (styleCounts[label] || 0) + 1;
+      }
+    });
+    const top = Object.entries(styleCounts).sort((a, b) => b[1] - a[1])[0];
+    el.profileStatStyle.textContent = top ? top[0] : '—';
+  } else {
+    el.profileStatStyle.textContent = '—';
+  }
+
+  // Render gallery
+  el.profileGallery.innerHTML = '';
+  if (history.length === 0) {
+    // Empty state handled by CSS ::after
+  } else {
+    // Show newest first
+    [...history].reverse().forEach(entry => {
+      const card = document.createElement('div');
+      card.className = 'gallery-card';
+
+      const date = new Date(entry.ts);
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      if (entry.thumb) {
+        const img = document.createElement('img');
+        img.className = 'gallery-thumb';
+        img.src = entry.thumb;
+        img.alt = entry.subject || 'Render';
+        card.appendChild(img);
+      } else {
+        // Placeholder for renders without thumbnails
+        const ph = document.createElement('div');
+        ph.className = 'gallery-thumb';
+        ph.style.cssText = `background:${entry.bgColor || '#FFEEDC'};display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(0,0,0,0.3);`;
+        ph.textContent = entry.subject?.charAt(0)?.toUpperCase() || '?';
+        card.appendChild(ph);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'gallery-meta';
+      meta.innerHTML = `
+        <div class="gallery-subject">${entry.subject || 'Untitled'}<span class="gallery-color-dot" style="background:${entry.bgColor || '#FFEEDC'}"></span></div>
+        <div class="gallery-date">${dateStr}</div>
+      `;
+      card.appendChild(meta);
+      el.profileGallery.appendChild(card);
+    });
+  }
+
+  el.profileOverlay.classList.remove('hidden');
+}
+
+function closeProfile() {
+  el.profileOverlay.classList.add('hidden');
+  // Cancel any pending edit
+  el.profileApiKey.readOnly = true;
+  el.profileApiKey.type = 'password';
+  el.profileKeySave.classList.add('hidden');
+  el.profileKeyEdit.classList.remove('hidden');
+}
+
+// Profile button click
+el.profileBtn.addEventListener('click', openProfile);
+
+// Close profile
+el.profileCloseBtn.addEventListener('click', closeProfile);
+el.profileOverlay.addEventListener('click', (e) => {
+  if (e.target === el.profileOverlay) closeProfile();
+});
+
+// Toggle API key visibility
+el.profileKeyToggle.addEventListener('click', () => {
+  el.profileApiKey.type = el.profileApiKey.type === 'password' ? 'text' : 'password';
+});
+
+// Edit API key
+el.profileKeyEdit.addEventListener('click', () => {
+  el.profileApiKey.readOnly = false;
+  el.profileApiKey.type = 'text';
+  el.profileApiKey.focus();
+  el.profileKeySave.classList.remove('hidden');
+  el.profileKeyEdit.classList.add('hidden');
+});
+
+// Save API key
+el.profileKeySave.addEventListener('click', () => {
+  const newKey = el.profileApiKey.value.trim();
+  if (newKey.length < 10) { showToast('API key too short'); return; }
+  STATE.apiKey = newKey;
+  UserDB.updateUser(STATE.userEmail, { apiKey: newKey });
+  el.profileApiKey.readOnly = true;
+  el.profileApiKey.type = 'password';
+  el.profileKeySave.classList.add('hidden');
+  el.profileKeyEdit.classList.remove('hidden');
+  showToast('API key updated ✓');
+});
 
 // ──────────────────────────────────────────────────
 //  Screen Transitions
@@ -198,8 +639,16 @@ function switchScreen(name) {
 function resetSession(initial = false) {
   STATE.phase = 'idle';
   STATE.currentImage = null;
+  // Revoke any blob URLs to free memory
+  if (STATE.renderedUrl && STATE.renderedUrl.startsWith('blob:')) URL.revokeObjectURL(STATE.renderedUrl);
+  if (STATE.originalRenderedUrl && STATE.originalRenderedUrl.startsWith('blob:') && STATE.originalRenderedUrl !== STATE.renderedUrl) URL.revokeObjectURL(STATE.originalRenderedUrl);
   STATE.renderedUrl = null;
-  STATE.session = { subject: '', background: '', style: '' };
+  STATE.renderedDisplayUrl = null;
+  STATE.rawRenderedUrl = null;
+  STATE.originalRenderedUrl = null;
+  STATE.originalDisplayUrl = null;
+  STATE.composedUrl = null;
+  STATE.session = { subject: '', bgColor: '#FFEEDC', style: '' };
 
   // Reset UI
   showPanel('upload');
@@ -267,6 +716,11 @@ el.uploadZone.addEventListener('drop', (e) => {
 });
 
 async function handleImageFile(file) {
+  const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!validTypes.includes(file.type)) {
+    showToast('Unsupported format. Use JPG, PNG, or WEBP.');
+    return;
+  }
   if (file.size > 20 * 1024 * 1024) {
     showToast('Image too large. Max 20MB.');
     return;
@@ -351,44 +805,169 @@ function askBackgroundColor() {
   }, 700);
 }
 
+// ──────────────────────────────────────────────────
+//  Full HSV Color Picker
+// ──────────────────────────────────────────────────
+const CP = { hue: 30, sat: 0.12, val: 0.99, draggingGrad: false, draggingHue: false };
+
 function showColorPicker() {
   el.colorPickerCard.classList.remove('hidden');
-  // Sync to current state color
-  updateColorPickerUI(STATE.session.bgColor);
+  // Set from current state color
+  const hsv = hexToHsv(STATE.session.bgColor || '#FFEEDC');
+  CP.hue = hsv.h; CP.sat = hsv.s; CP.val = hsv.v;
+  drawHueBar();
+  drawGradient();
+  syncCPUI();
+  // Render saved palette
+  renderUserPalette();
 }
 
-function updateColorPickerUI(hex) {
-  el.cpPreviewSwatch.style.background = hex;
-  el.cpHexDisplay.textContent = hex.toUpperCase();
-  el.bgColorInput.value = hex;
+// ── HSV ↔ RGB ↔ Hex conversions ──
+function hsvToRgb(h, s, v) {
+  h /= 360;
+  const i = Math.floor(h * 6), f = h * 6 - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+  let r, g, b;
+  switch (i % 6) {
+    case 0: r=v;g=t;b=p;break; case 1: r=q;g=v;b=p;break;
+    case 2: r=p;g=v;b=t;break; case 3: r=p;g=q;b=v;break;
+    case 4: r=t;g=p;b=v;break; case 5: r=v;g=p;b=q;break;
+  }
+  return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+}
+function hsvToHex(h, s, v) {
+  return '#' + hsvToRgb(h, s, v).map(c => c.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function hexToHsv(hex) {
+  hex = hex.replace('#','');
+  if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  const r = parseInt(hex.substr(0,2),16)/255;
+  const g = parseInt(hex.substr(2,2),16)/255;
+  const b = parseInt(hex.substr(4,2),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+  let h = 0;
+  if (d) {
+    switch(max) {
+      case r: h=((g-b)/d+(g<b?6:0))*60; break;
+      case g: h=((b-r)/d+2)*60; break;
+      case b: h=((r-g)/d+4)*60; break;
+    }
+  }
+  return { h, s: max===0?0:d/max, v: max };
+}
+
+// ── Canvas rendering ──
+function drawHueBar() {
+  const canvas = el.cpHueBar;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,canvas.width,0);
+  for (let i = 0; i <= 360; i += 30) grad.addColorStop(i/360, `hsl(${i},100%,50%)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+function drawGradient() {
+  const canvas = el.cpGradient;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = `hsl(${CP.hue},100%,50%)`;
+  ctx.fillRect(0, 0, w, h);
+  // White → transparent (left to right)
+  const wg = ctx.createLinearGradient(0,0,w,0);
+  wg.addColorStop(0,'rgba(255,255,255,1)'); wg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle = wg; ctx.fillRect(0,0,w,h);
+  // Transparent → black (top to bottom)
+  const bg = ctx.createLinearGradient(0,0,0,h);
+  bg.addColorStop(0,'rgba(0,0,0,0)'); bg.addColorStop(1,'rgba(0,0,0,1)');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,w,h);
+}
+
+// ── Sync UI from HSV state ──
+function syncCPUI() {
+  const hex = hsvToHex(CP.hue, CP.sat, CP.val);
   STATE.session.bgColor = hex;
+  el.cpPreviewSwatch.style.background = hex;
+  el.cpHexInput.value = hex;
+  // Position gradient cursor
+  const gw = el.cpGradientWrap.offsetWidth || 260;
+  const gh = el.cpGradientWrap.offsetHeight || 150;
+  el.cpCursor.style.left = (CP.sat * gw) + 'px';
+  el.cpCursor.style.top = ((1 - CP.val) * gh) + 'px';
+  // Position hue cursor
+  const hw = el.cpHueWrap.offsetWidth || 260;
+  el.cpHueCursor.style.left = ((CP.hue / 360) * hw) + 'px';
 }
 
-// Color swatch clicks
-document.querySelectorAll('.cp-swatch:not(.cp-custom-trigger)').forEach(swatch => {
+// ── Gradient canvas interaction ──
+function gradFromEvent(e) {
+  const r = el.cpGradientWrap.getBoundingClientRect();
+  CP.sat = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  CP.val = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height));
+  syncCPUI();
+}
+el.cpGradientWrap.addEventListener('mousedown', e => { CP.draggingGrad = true; gradFromEvent(e); });
+document.addEventListener('mousemove', e => { if (CP.draggingGrad) gradFromEvent(e); });
+document.addEventListener('mouseup', () => { CP.draggingGrad = false; });
+el.cpGradientWrap.addEventListener('touchstart', e => { e.preventDefault(); CP.draggingGrad = true; gradFromTouch(e); }, { passive: false });
+el.cpGradientWrap.addEventListener('touchmove', e => { e.preventDefault(); if (CP.draggingGrad) gradFromTouch(e); }, { passive: false });
+el.cpGradientWrap.addEventListener('touchend', () => { CP.draggingGrad = false; });
+function gradFromTouch(e) {
+  const t = e.touches[0], r = el.cpGradientWrap.getBoundingClientRect();
+  CP.sat = Math.max(0, Math.min(1, (t.clientX - r.left) / r.width));
+  CP.val = Math.max(0, Math.min(1, 1 - (t.clientY - r.top) / r.height));
+  syncCPUI();
+}
+
+// ── Hue bar interaction ──
+function hueFromEvent(e) {
+  const r = el.cpHueWrap.getBoundingClientRect();
+  CP.hue = Math.max(0, Math.min(360, ((e.clientX - r.left) / r.width) * 360));
+  drawGradient(); syncCPUI();
+}
+el.cpHueWrap.addEventListener('mousedown', e => { CP.draggingHue = true; hueFromEvent(e); });
+document.addEventListener('mousemove', e => { if (CP.draggingHue) hueFromEvent(e); });
+document.addEventListener('mouseup', () => { CP.draggingHue = false; });
+el.cpHueWrap.addEventListener('touchstart', e => { e.preventDefault(); CP.draggingHue = true; hueFromTouch(e); }, { passive: false });
+el.cpHueWrap.addEventListener('touchmove', e => { e.preventDefault(); if (CP.draggingHue) hueFromTouch(e); }, { passive: false });
+el.cpHueWrap.addEventListener('touchend', () => { CP.draggingHue = false; });
+function hueFromTouch(e) {
+  const t = e.touches[0], r = el.cpHueWrap.getBoundingClientRect();
+  CP.hue = Math.max(0, Math.min(360, ((t.clientX - r.left) / r.width) * 360));
+  drawGradient(); syncCPUI();
+}
+
+// ── Hex input ──
+el.cpHexInput.addEventListener('input', () => {
+  let v = el.cpHexInput.value.trim();
+  if (!v.startsWith('#')) v = '#' + v;
+  if (/^#[0-9A-Fa-f]{6}$/.test(v)) {
+    const hsv = hexToHsv(v);
+    CP.hue = hsv.h; CP.sat = hsv.s; CP.val = hsv.v;
+    drawGradient(); syncCPUI();
+  }
+});
+el.cpHexInput.addEventListener('blur', () => {
+  // Ensure valid hex on blur
+  el.cpHexInput.value = hsvToHex(CP.hue, CP.sat, CP.val);
+});
+
+// ── Preset swatch clicks ──
+document.querySelectorAll('.cp-swatch').forEach(swatch => {
   swatch.addEventListener('click', () => {
-    updateColorPickerUI(swatch.dataset.color);
-    // Highlight selected
+    const hex = swatch.dataset.color;
+    const hsv = hexToHsv(hex);
+    CP.hue = hsv.h; CP.sat = hsv.s; CP.val = hsv.v;
+    drawGradient(); syncCPUI();
     document.querySelectorAll('.cp-swatch').forEach(s => s.classList.remove('selected'));
     swatch.classList.add('selected');
   });
 });
 
-// Custom color input
-el.bgColorInput.addEventListener('input', () => {
-  updateColorPickerUI(el.bgColorInput.value);
-});
-
-// Trigger color input click when + button is clicked
-document.querySelector('.cp-custom-trigger').addEventListener('click', (e) => {
-  e.preventDefault();
-  el.bgColorInput.click();
-});
-
-// Confirm color button — goes directly to style step
+// ── Confirm color ──
 el.cpConfirmBtn.addEventListener('click', () => {
   addUserMessage(`Background: ${STATE.session.bgColor.toUpperCase()}`);
   el.colorPickerCard.classList.add('hidden');
+  // Save preferred bg color
+  if (STATE.userEmail) UserDB.updatePrefs(STATE.userEmail, { defaultBgColor: STATE.session.bgColor });
   STATE.phase = 'style-wait';
   askStyle();
 });
@@ -441,15 +1020,55 @@ async function startRendering() {
     timers.forEach(clearTimeout);
     steps.forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
 
-    // Show result
-    STATE.renderedUrl = imageData;
-    STATE.originalRenderedUrl = imageData;   // save first render for "Back" option
+    // Show result — compose to 4K with background
+    STATE.rawRenderedUrl = imageData;
+    const { blobUrl, displayUrl } = await composeTo4K(imageData, STATE.session.bgColor);
+    STATE.renderedUrl = blobUrl;
+    STATE.renderedDisplayUrl = displayUrl;
+    STATE.originalRenderedUrl = blobUrl;
+    STATE.originalDisplayUrl = displayUrl;
     STATE.isAdjustedVersion = false;
     STATE.imageCount++;
-    displayResult(imageData);
+
+    // Track render for AI learning + save thumbnail
+    if (STATE.userEmail) {
+      // Generate tiny thumbnail for gallery (160px wide JPEG)
+      let thumb = '';
+      try {
+        const thumbCanvas = document.createElement('canvas');
+        const thumbImg = new Image();
+        thumbImg.crossOrigin = 'anonymous';
+        await new Promise((resolve) => {
+          thumbImg.onload = resolve;
+          thumbImg.onerror = resolve;
+          thumbImg.src = displayUrl;
+        });
+        const scale = 160 / thumbImg.naturalWidth;
+        thumbCanvas.width = 160;
+        thumbCanvas.height = Math.round(thumbImg.naturalHeight * scale);
+        thumbCanvas.getContext('2d').drawImage(thumbImg, 0, 0, thumbCanvas.width, thumbCanvas.height);
+        thumb = thumbCanvas.toDataURL('image/jpeg', 0.6);
+      } catch (e) { console.warn('Thumbnail generation failed:', e); }
+
+      UserDB.addRenderHistory(STATE.userEmail, {
+        subject: STATE.session.subject,
+        bgColor: STATE.session.bgColor,
+        style: STATE.session.style,
+        adjustments: [],
+        thumb,
+      });
+      // Save last-used preferences
+      UserDB.updatePrefs(STATE.userEmail, {
+        defaultBgColor: STATE.session.bgColor,
+        defaultStyle: STATE.session.style,
+      });
+    }
+
+    displayResult(displayUrl);
   } catch (err) {
     console.error(err);
     timers.forEach(clearTimeout);
+    stopCanvasAnimation();
     showPanel('upload');
     STATE.phase = 'idle';
     STATE.currentImage = null;
@@ -507,13 +1126,17 @@ async function callGeminiWithModel(model, base64, mimeType, prompt) {
     }
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${STATE.apiKey}`;
+  // Build URL and headers based on auth method
+  let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const headers = { 'Content-Type': 'application/json' };
+  url += `?key=${STATE.apiKey}`;
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
+
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
@@ -565,15 +1188,82 @@ async function callGeminiWithModel(model, base64, mimeType, prompt) {
 
 function buildRenderPrompt(adjustNotes = '') {
   const adj = adjustNotes ? `\nAdditional change: ${adjustNotes}.` : '';
-  // Convert hex to a descriptive color name for the prompt
   const bgHex = STATE.session.bgColor || '#FFEEDC';
-  return `Edit this image to create an ultra-realistic professional photograph.
+
+  // AI Learning: enhance prompt with insights from render history
+  let learnedContext = '';
+  if (STATE.userEmail) {
+    const insights = UserDB.getLearnedInsights(STATE.userEmail, STATE.session.subject);
+    if (insights && insights.similarRenders > 0) {
+      const details = insights.similarDetails.map(d => `${d.subject} (${d.style?.split(' ').slice(0,2).join(' ')})`).join(', ');
+      learnedContext = `\n\nContext from previous successful renders of similar subjects: ${details}. Apply learned aesthetic preferences.`;
+    }
+  }
+
+  return `Edit this image to create an ultra-realistic professional photograph at the highest possible resolution.
 
 Subject: ${STATE.session.subject}
-Background: replace the background with a smooth, seamless solid color background, hex color ${bgHex}. No gradients, no textures — perfectly flat solid color fill.
-Style: ${STATE.session.style}${adj}
+Background: replace the background with a smooth, seamless solid color background, hex color ${bgHex}. No gradients, no textures — perfectly flat solid color fill extending to all edges.
+Style: ${STATE.session.style}${adj}${learnedContext}
 
-Instructions: Keep the subject identical. Replace all background pixels with the specified solid color. Apply professional photographic lighting, clean shadows underneath the subject, and output the complete edited image.`;
+Instructions: Keep the subject identical. Replace all background pixels with the specified solid color. Apply professional photographic lighting, clean shadows underneath the subject, and output the complete edited image at maximum quality and resolution.`;
+}
+
+function buildAdjustmentPrompt(adjustNotes) {
+  return `Edit this rendered image with the following adjustment: ${adjustNotes}.
+
+IMPORTANT: Keep everything else EXACTLY the same — same subject, same composition, same background, same lighting. Only apply the specific change requested above. Output the complete edited image at maximum quality.`;
+}
+
+// ──────────────────────────────────────────────────
+//  4K Composition (3840×2400) — blob-based
+//  Returns { blobUrl, displayUrl } where blobUrl is the full-res
+//  object URL and displayUrl is a smaller data URL for UI display.
+// ──────────────────────────────────────────────────
+async function composeTo4K(renderedDataUrl, bgColor) {
+  const TARGET_W = 3840, TARGET_H = 2400;
+  const canvas = document.createElement('canvas');
+  canvas.width = TARGET_W;
+  canvas.height = TARGET_H;
+  const ctx = canvas.getContext('2d');
+
+  // Fill entire canvas with solid background color
+  ctx.fillStyle = bgColor || '#FFEEDC';
+  ctx.fillRect(0, 0, TARGET_W, TARGET_H);
+
+  // Load the Gemini-rendered image
+  const img = await loadImage(renderedDataUrl);
+
+  // Scale to fit within canvas, centered — background fills the rest
+  const scale = Math.min(TARGET_W / img.width, TARGET_H / img.height);
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const x = Math.round((TARGET_W - w) / 2);
+  const y = Math.round((TARGET_H - h) / 2);
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, x, y, w, h);
+
+  // Use blob for full-res (avoids data URL size limits that break 4K)
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob(b => {
+      if (!b) reject(new Error('4K canvas export failed'));
+      else resolve(b);
+    }, 'image/jpeg', 0.94);
+  });
+  const blobUrl = URL.createObjectURL(blob);
+
+  // Create a smaller display version for the comparison view (max 1920px wide)
+  const dispScale = Math.min(1, 1920 / TARGET_W);
+  const displayCanvas = document.createElement('canvas');
+  displayCanvas.width = Math.round(TARGET_W * dispScale);
+  displayCanvas.height = Math.round(TARGET_H * dispScale);
+  const dctx = displayCanvas.getContext('2d');
+  dctx.drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
+  const displayUrl = displayCanvas.toDataURL('image/jpeg', 0.90);
+
+  return { blobUrl, displayUrl };
 }
 
 
@@ -581,6 +1271,7 @@ Instructions: Keep the subject identical. Replace all background pixels with the
 //  Result Display
 // ──────────────────────────────────────────────────
 async function displayResult(renderedUrl) {
+  stopCanvasAnimation();
   STATE.phase = 'result';
   STATE.composedUrl = null;
   updateHeaderStatus('Render Complete');
@@ -593,6 +1284,9 @@ async function displayResult(renderedUrl) {
   el.afterImgSplit.src = renderedUrl;
   el.beforeImgSingle.src = orig;
   el.afterImgSingle.src = renderedUrl;
+
+  // Update download button to use full-res blob URL
+  el.downloadBtn.dataset.fullResUrl = STATE.renderedUrl;
 
   el.renderSubjectMeta.textContent = STATE.session.subject;
   el.renderBgMeta.textContent = STATE.session.bgColor;
@@ -683,23 +1377,26 @@ function triggerDownload() {
   if (!url) return;
   const a = document.createElement('a');
   a.href = url;
-  a.download = `renderai-${Date.now()}.jpg`;
+  a.download = `viso-render-4k-${Date.now()}.jpg`;
+  document.body.appendChild(a);
   a.click();
-  showToast(STATE.composedUrl ? 'Downloaded 4K export!' : 'Rendered image downloaded!');
+  document.body.removeChild(a);
+  showToast(STATE.composedUrl ? 'Downloaded export!' : '4K rendered image downloaded!');
 }
 
 el.previewBtn.addEventListener('click', () => {
+  // Use the full-res blob URL for preview (not the display URL)
   const url = STATE.composedUrl || STATE.renderedUrl;
   if (!url) return;
-  const win = window.open();
-  const label = STATE.composedUrl ? '4K Export' : 'Render';
-  win.document.write(`
-    <html><head><title>RenderAI ${label} Preview</title>
-    <style>body{margin:0;background:#080b14;display:flex;align-items:center;justify-content:center;min-height:100vh}
-    img{max-width:100%;max-height:100vh;object-fit:contain}</style></head>
-    <body><img src="${url}" alt="${label}"/></body></html>
-  `);
-  win.document.close();
+  const label = STATE.composedUrl ? 'Export' : '4K Render';
+  const win = window.open(url, '_blank');
+  if (!win) {
+    // Popup blocked — fallback
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.click();
+  }
 });
 
 // ── Upscale & Export button ──
@@ -732,6 +1429,8 @@ document.querySelectorAll('.up-tp-card').forEach(card => {
 });
 
 // Export button — compose at chosen resolution with chosen template
+const EXPORT_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+
 el.upExportBtn.addEventListener('click', async () => {
   el.upExportBtn.disabled = true;
   el.upExportBtn.textContent = 'Compositing…';
@@ -739,25 +1438,29 @@ el.upExportBtn.addEventListener('click', async () => {
   const tpl = STATE.selectedTemplate;
   showToast(`Generating ${res.toUpperCase()} export…`);
   try {
-    const url = await composeWithTemplate(STATE.renderedUrl, tpl, STATE.session.bgColor, res);
-    STATE.composedUrl = url;
-    // Auto-download
+    const { blob, dataUrl } = await composeWithTemplate(STATE.renderedUrl, tpl, STATE.session.bgColor, res);
+    STATE.composedUrl = dataUrl;
+    // Download via blob URL (far more memory-efficient than data URL for large canvases)
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = blobUrl;
     a.download = `viso-render-${tpl}-${res}-${Date.now()}.jpg`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
     el.upExportBtn.disabled = false;
-    el.upExportBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export`;
+    el.upExportBtn.innerHTML = `${EXPORT_SVG} Export`;
     showToast(`✅ ${res.toUpperCase()} file downloaded!`);
     addAgentMessage(`🎨 <strong>${res.toUpperCase()}</strong> export with <strong>${tpl === 'none' ? 'no template' : tpl + ' text'}</strong> template downloaded!`, false);
     // Update comparison view to show composed version
-    el.afterImgSplit.src = url;
-    el.afterImgSingle.src = url;
+    el.afterImgSplit.src = dataUrl;
+    el.afterImgSingle.src = dataUrl;
     el.upscalePicker.classList.add('hidden');
     showActionBtns();
   } catch (err) {
     el.upExportBtn.disabled = false;
-    el.upExportBtn.innerHTML = `<svg width="14" height="14" ...></svg> Export`;
+    el.upExportBtn.innerHTML = `${EXPORT_SVG} Export`;
     showToast('Export failed: ' + err.message);
     console.error(err);
   }
@@ -767,10 +1470,11 @@ el.upExportBtn.addEventListener('click', async () => {
 el.backOriginalBtn.addEventListener('click', () => {
   if (!STATE.originalRenderedUrl) return;
   STATE.renderedUrl = STATE.originalRenderedUrl;
+  STATE.renderedDisplayUrl = STATE.originalDisplayUrl;
   STATE.isAdjustedVersion = false;
-  // Update images
-  el.afterImgSplit.src = STATE.originalRenderedUrl;
-  el.afterImgSingle.src = STATE.originalRenderedUrl;
+  // Update images with display URL for the comparison view
+  el.afterImgSplit.src = STATE.originalDisplayUrl || STATE.originalRenderedUrl;
+  el.afterImgSingle.src = STATE.originalDisplayUrl || STATE.originalRenderedUrl;
   el.backOriginalRow.classList.add('hidden');
   addAgentMessage('← Restored to first render. You can adjust again or upscale & export.', false);
   showActionBtns();
@@ -838,41 +1542,31 @@ async function composeWithTemplate(renderedDataUrl, templateId, bgColor, resolut
     }
   }
 
-  return canvas.toDataURL('image/jpeg', 0.96);
+  // Adaptive quality — lower for larger resolutions to reduce memory pressure
+  const quality = resolution === '8k' ? 0.85 : (resolution === '4k' ? 0.92 : 0.94);
+
+  // Return both blob (for download) and dataUrl (for display)
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('Canvas export failed')); return; }
+        // Also generate a smaller data URL for display in the comparison view
+        const displayCanvas = document.createElement('canvas');
+        const dispScale = Math.min(1, 1920 / W);  // cap display at 1920px wide
+        displayCanvas.width = Math.round(W * dispScale);
+        displayCanvas.height = Math.round(H * dispScale);
+        const dctx = displayCanvas.getContext('2d');
+        dctx.drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
+        const dataUrl = displayCanvas.toDataURL('image/jpeg', 0.88);
+        resolve({ blob, dataUrl });
+      }, 'image/jpeg', quality);
+    } catch (e) {
+      reject(e);
+    }
+  });
 }
 
-function drawVisoTemplate(ctx, W, H, templateId) {
-  const scale = W / 1024;  // scale relative to 1024px reference width
 
-  // Logo position: bottom-right corner
-  const logoRX = W - 60 * scale;   // right edge of logo area
-  const logoY = H - 80 * scale;   // vertical center of logo area
-
-  // Draw VISO "V" chevron logo
-  drawVisoV(ctx, logoRX - 30 * scale, logoY - 18 * scale, 28 * scale);
-
-  // Draw "VISO LIGHTING" text
-  const fontSize = Math.round(9 * scale);
-  ctx.fillStyle = '#F0A500';
-  ctx.font = `600 ${fontSize}px Arial, Helvetica, sans-serif`;
-  ctx.letterSpacing = `${2 * scale}px`;
-  ctx.textAlign = 'right';
-  ctx.fillText('VISO LIGHTING', logoRX, logoY + 16 * scale);
-  ctx.textAlign = 'left';
-  ctx.letterSpacing = '0px';
-
-  // Template 2: add disclaimer text bottom-left
-  if (templateId === 'disclaimer') {
-    const dFontSize = Math.round(7 * scale);
-    ctx.fillStyle = '#999999';
-    ctx.font = `${dFontSize}px Arial, Helvetica, sans-serif`;
-    const dX = 50 * scale;
-    const dY = H - 70 * scale;
-    ctx.fillText('RENDERING IS A REPRESENTATION OF THE FIXTURE;', dX, dY);
-    ctx.fillText('FINISH SAMPLE TO BE CONFIRMED;', dX, dY + dFontSize * 1.6);
-    ctx.fillText('PRODUCTION TO BE VERIFIED UPON CONTROL SAMPLE APPROVAL.', dX, dY + dFontSize * 3.2);
-  }
-}
 
 function drawVisoV(ctx, cx, cy, s) {
   // Two parallelogram arms forming a V
@@ -905,25 +1599,7 @@ function loadImage(src) {
   });
 }
 
-// Draw mini thumbnails for template picker cards
-function drawTemplateThumbnails() {
-  ['clean', 'disclaimer'].forEach(tid => {
-    const canvas = document.getElementById(`tp-canvas-${tid}`);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    // Background
-    ctx.fillStyle = STATE.session.bgColor || '#FFEEDC';
-    ctx.fillRect(0, 0, W, H);
-    // Fake product rectangle placeholder
-    ctx.fillStyle = 'rgba(0,0,0,0.08)';
-    const pw = W * 0.45, ph = H * 0.55;
-    ctx.fillRect((W - pw) / 2, (H - ph) / 2 - 4, pw, ph);
-    // Draw mini VISO template
-    const scale = W / 1024;
-    drawVisoTemplate(ctx, W, H, tid);
-  });
-}
+
 
 // ──────────────────────────────────────────────────
 //  Chat Input Handling
@@ -1039,6 +1715,8 @@ function clearInput() {
   el.adjustmentRow.classList.add('hidden');
   el.colorPickerCard.classList.add('hidden');
   el.upscalePicker.classList.add('hidden');
+  // Clean up optional enter-skip listener to prevent accumulation
+  el.chatInput.removeEventListener('keydown', optionalEnterSkip);
 }
 
 function hideInput() {
@@ -1086,8 +1764,27 @@ el.applyAdjBtn.addEventListener('click', async () => {
 
   // Grab annotated image (rendered + drawn marks) if strokes were made
   const annotatedB64 = await getAnnotatedImageBase64();
-  const inputBase64 = annotatedB64 || STATE.currentImage.base64;
-  const inputMime = annotatedB64 ? 'image/jpeg' : STATE.currentImage.mimeType;
+  let inputBase64, inputMime;
+  if (annotatedB64) {
+    // Use the annotated (rendered + drawings) image
+    inputBase64 = annotatedB64;
+    inputMime = 'image/jpeg';
+  } else {
+    // Use the RAW rendered image (pre-4K data URL) for efficient API calls
+    const rawUrl = STATE.rawRenderedUrl;
+    if (!rawUrl || !rawUrl.startsWith('data:')) {
+      // Fallback: convert the blob URL to base64 via canvas
+      const img = await loadImage(STATE.renderedUrl);
+      const cvs = document.createElement('canvas');
+      cvs.width = img.width; cvs.height = img.height;
+      cvs.getContext('2d').drawImage(img, 0, 0);
+      const fallbackUrl = cvs.toDataURL('image/jpeg', 0.88);
+      inputBase64 = fallbackUrl.split(',')[1];
+    } else {
+      inputBase64 = rawUrl.split(',')[1];
+    }
+    inputMime = 'image/jpeg';
+  }
 
   // Hide annotation canvas
   hideAnnotationMode();
@@ -1102,15 +1799,20 @@ el.applyAdjBtn.addEventListener('click', async () => {
   addAgentMessage(`🔄 Applying: "${adjText}"${annotatedB64 ? ' (using your drawing as reference)' : ''}…`, false);
 
   try {
-    const newPrompt = buildRenderPrompt(adjText);
+    // Use a focused adjustment prompt instead of the full re-render prompt
+    const newPrompt = buildAdjustmentPrompt(adjText);
     const imageData = await tryGeminiModels(inputBase64, inputMime, newPrompt);
 
     steps_complete();
-    STATE.renderedUrl = imageData;
+    STATE.rawRenderedUrl = imageData;
+    const { blobUrl, displayUrl } = await composeTo4K(imageData, STATE.session.bgColor);
+    STATE.renderedUrl = blobUrl;
+    STATE.renderedDisplayUrl = displayUrl;
     STATE.isAdjustedVersion = true;   // mark as adjusted so "back" button shows
-    displayResult(imageData);
+    displayResult(displayUrl);
   } catch (err) {
     console.error(err);
+    stopCanvasAnimation();
     showPanel('comparison');
     STATE.phase = 'result';
     updateHeaderStatus('Render Complete');
@@ -1247,7 +1949,10 @@ async function getAnnotatedImageBase64() {
   const ctx = canvas.getContext('2d');
   // Check if any pixels were drawn (alpha > 0)
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-  const hasStrokes = Array.from(data).some((v, i) => i % 4 === 3 && v > 0);
+  let hasStrokes = false;
+  for (let i = 3, len = data.length; i < len; i += 4) {
+    if (data[i] > 0) { hasStrokes = true; break; }
+  }
   if (!hasStrokes) return null;
 
   // Build composite: rendered image scaled to canvas size + annotation
@@ -1287,8 +1992,16 @@ function compressImageFromCanvas(srcCanvas) {
 el.nextImageBtn.addEventListener('click', () => {
   STATE.phase = 'idle';
   STATE.currentImage = null;
+  // Revoke blob URLs to free memory
+  if (STATE.renderedUrl && STATE.renderedUrl.startsWith('blob:')) URL.revokeObjectURL(STATE.renderedUrl);
+  if (STATE.originalRenderedUrl && STATE.originalRenderedUrl.startsWith('blob:') && STATE.originalRenderedUrl !== STATE.renderedUrl) URL.revokeObjectURL(STATE.originalRenderedUrl);
   STATE.renderedUrl = null;
-  STATE.session = { subject: '', background: '', style: '' };
+  STATE.renderedDisplayUrl = null;
+  STATE.rawRenderedUrl = null;
+  STATE.originalRenderedUrl = null;
+  STATE.originalDisplayUrl = null;
+  STATE.composedUrl = null;
+  STATE.session = { subject: '', bgColor: '#FFEEDC', style: '' };
 
   showPanel('upload');
   el.chatThumb.classList.add('hidden');
