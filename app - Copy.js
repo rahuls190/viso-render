@@ -1,7 +1,6 @@
 /* ===================================================
    RenderAI — Agent Application Logic
    Uses Gemini API for ultra-realistic image rendering
-   Features: User accounts, preferences, AI learning
 =================================================== */
 
 // ──────────────────────────────────────────────────
@@ -14,153 +13,18 @@ const GEMINI_MODELS = [
 ];
 
 // ──────────────────────────────────────────────────
-//  UserDB — localStorage-based user management
-// ──────────────────────────────────────────────────
-const UserDB = {
-  USERS_KEY: 'viso_users',
-  SESSION_KEY: 'viso_session',
-  MAX_PALETTE: 20,
-  MAX_HISTORY: 50,
-
-  async hash(str) {
-    const data = new TextEncoder().encode(str);
-    const buf = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-  },
-
-  _getAll() {
-    try { return JSON.parse(localStorage.getItem(this.USERS_KEY)) || {}; }
-    catch { return {}; }
-  },
-  _saveAll(users) { localStorage.setItem(this.USERS_KEY, JSON.stringify(users)); },
-
-  getUser(email) { return this._getAll()[email.toLowerCase()] || null; },
-
-  async createUser(name, email, password, apiKey) {
-    email = email.toLowerCase();
-    const users = this._getAll();
-    if (users[email]) throw new Error('An account with this email already exists.');
-    users[email] = {
-      name,
-      passwordHash: await this.hash(password),
-      apiKey,
-      createdAt: Date.now(),
-      prefs: { defaultBgColor: '#FFEEDC', defaultStyle: '', upscaleResolution: '4k' },
-      palette: [],
-      renderHistory: [],
-    };
-    this._saveAll(users);
-    return users[email];
-  },
-
-  async verifyPassword(email, password) {
-    const user = this.getUser(email);
-    if (!user) return false;
-    return user.passwordHash === await this.hash(password);
-  },
-
-  updateUser(email, updates) {
-    email = email.toLowerCase();
-    const users = this._getAll();
-    if (!users[email]) return;
-    Object.assign(users[email], updates);
-    this._saveAll(users);
-  },
-
-  updatePrefs(email, prefs) {
-    email = email.toLowerCase();
-    const users = this._getAll();
-    if (!users[email]) return;
-    Object.assign(users[email].prefs, prefs);
-    this._saveAll(users);
-  },
-
-  getPalette(email) { return this.getUser(email)?.palette || []; },
-
-  addToPalette(email, hex) {
-    email = email.toLowerCase();
-    const users = this._getAll();
-    const user = users[email];
-    if (!user) return;
-    hex = hex.toUpperCase();
-    if (user.palette.includes(hex)) return;
-    if (user.palette.length >= this.MAX_PALETTE) user.palette.shift();
-    user.palette.push(hex);
-    this._saveAll(users);
-  },
-
-  removeFromPalette(email, hex) {
-    email = email.toLowerCase();
-    const users = this._getAll();
-    const user = users[email];
-    if (!user) return;
-    user.palette = user.palette.filter(c => c !== hex.toUpperCase());
-    this._saveAll(users);
-  },
-
-  addRenderHistory(email, entry) {
-    email = email.toLowerCase();
-    const users = this._getAll();
-    const user = users[email];
-    if (!user) return;
-    user.renderHistory.push({ ts: Date.now(), ...entry });
-    if (user.renderHistory.length > this.MAX_HISTORY) {
-      user.renderHistory = user.renderHistory.slice(-this.MAX_HISTORY);
-    }
-    this._saveAll(users);
-  },
-
-  getRenderHistory(email) { return this.getUser(email)?.renderHistory || []; },
-
-  getLearnedInsights(email, currentSubject) {
-    const history = this.getRenderHistory(email);
-    if (history.length < 2) return null;
-    const subjectWords = currentSubject.toLowerCase().split(/\s+/);
-    const similar = history.filter(h => {
-      const hWords = (h.subject || '').toLowerCase().split(/\s+/);
-      return subjectWords.some(w => w.length > 2 && hWords.includes(w));
-    });
-    const styleCounts = {};
-    history.forEach(h => { if (h.style) { const l = h.style.split(' ').slice(0, 3).join(' '); styleCounts[l] = (styleCounts[l] || 0) + 1; } });
-    const topStyle = Object.entries(styleCounts).sort((a, b) => b[1] - a[1])[0];
-    const colorCounts = {};
-    history.forEach(h => { if (h.bgColor) colorCounts[h.bgColor] = (colorCounts[h.bgColor] || 0) + 1; });
-    const topColor = Object.entries(colorCounts).sort((a, b) => b[1] - a[1])[0];
-    return { totalRenders: history.length, similarRenders: similar.length, topStyle: topStyle?.[0], topColor: topColor?.[0], similarDetails: similar.slice(-3) };
-  },
-
-  saveSession(email, rememberMe) {
-    const data = { email: email.toLowerCase(), rememberMe };
-    if (rememberMe) localStorage.setItem(this.SESSION_KEY, JSON.stringify(data));
-    else sessionStorage.setItem(this.SESSION_KEY, JSON.stringify(data));
-  },
-
-  getSession() {
-    try { return JSON.parse(localStorage.getItem(this.SESSION_KEY)) || JSON.parse(sessionStorage.getItem(this.SESSION_KEY)) || null; }
-    catch { return null; }
-  },
-
-  clearSession() {
-    localStorage.removeItem(this.SESSION_KEY);
-    sessionStorage.removeItem(this.SESSION_KEY);
-  },
-};
-
-// ──────────────────────────────────────────────────
 //  State
 // ──────────────────────────────────────────────────
 const STATE = {
   apiKey: '',
-  userEmail: null,               // logged-in user email
-  userName: null,                // logged-in user name
   phase: 'idle',
   currentImage: null,
   renderedUrl: null,
-  renderedDisplayUrl: null,          // downscaled version for UI display
-  rawRenderedUrl: null,              // original Gemini output, for efficient re-renders
+  rawRenderedUrl: null,              // original Gemini output (pre-4K), for efficient re-renders
   originalRenderedUrl: null,    // first render for this image (for "back" option)
-  originalDisplayUrl: null,     // display version of first render
+  composedUrl: null,
   session: { subject: '', bgColor: '#FFEEDC', style: '' },
+  selectedTemplate: 'none',     // 'none' | 'dark' | 'white'
   upscaleResolution: '4k',      // '2k' | '4k' | '8k'
   imageCount: 0,
   splitPos: 50,
@@ -185,31 +49,16 @@ const $ = (id) => document.getElementById(id);
 const el = {
   setupScreen: $('setup-screen'),
   appScreen: $('app-screen'),
+  apiKeyInput: $('api-key-input'),
+  toggleKeyVis: $('toggle-key-vis'),
+  startBtn: $('start-btn'),
   setupError: $('setup-error'),
-  // auth
-  authTabSignin: $('auth-tab-signin'),
-  authTabSignup: $('auth-tab-signup'),
-  authSigninForm: $('auth-signin-form'),
-  authSignupForm: $('auth-signup-form'),
-  signinEmail: $('signin-email'),
-  signinPassword: $('signin-password'),
-  signinRemember: $('signin-remember'),
-  signinBtn: $('signin-btn'),
-  toggleSigninVis: $('toggle-signin-vis'),
-  signupName: $('signup-name'),
-  signupEmail: $('signup-email'),
-  signupPassword: $('signup-password'),
-  signupConfirm: $('signup-confirm'),
-  signupApikey: $('signup-apikey'),
-  signupBtn: $('signup-btn'),
-  toggleSignupKeyVis: $('toggle-signup-key-vis'),
   // header
   headerStatusText: $('header-status-text'),
   imageCounterBadge: $('image-counter-badge'),
   imageCount: $('image-count'),
   newSessionBtn: $('new-session-btn'),
-  logoutBtn: $('logout-btn'),
-  userNameDisplay: $('user-name-display'),
+  changeKeyBtn: $('change-key-btn'),
   // panels
   uploadZone: $('upload-zone'),
   fileInput: $('file-input'),
@@ -266,10 +115,7 @@ const el = {
   cpPreviewSwatch: $('cp-preview-swatch'),
   cpHexInput: $('cp-hex-input'),
   cpConfirmBtn: $('cp-confirm-btn'),
-  // palette
-  cpPaletteSwatches: $('cp-palette-swatches'),
-  cpPaletteCount: $('cp-palette-count'),
-  cpSaveColorBtn: $('cp-save-color-btn'),
+
   // upscale picker
   upscalePicker: $('upscale-picker'),
   upscaleBtn: $('upscale-btn'),
@@ -282,128 +128,34 @@ const el = {
   drawingToolbar: $('drawing-toolbar'),
   toast: $('toast'),
   toastMsg: $('toast-msg'),
-  // profile panel
-  profileBtn: $('profile-btn'),
-  profileOverlay: $('profile-overlay'),
-  profileCloseBtn: $('profile-close-btn'),
-  profileAvatar: $('profile-avatar'),
-  profileName: $('profile-name'),
-  profileEmail: $('profile-email'),
-  profileJoined: $('profile-joined'),
-  profileApiKey: $('profile-api-key'),
-  profileKeyToggle: $('profile-key-toggle'),
-  profileKeyEdit: $('profile-key-edit'),
-  profileKeySave: $('profile-key-save'),
-  profileStatRenders: $('profile-stat-renders'),
-  profileStatColors: $('profile-stat-colors'),
-  profileStatStyle: $('profile-stat-style'),
-  profileGallery: $('profile-gallery'),
 };
 
 // ──────────────────────────────────────────────────
-//  Auth Screen — Sign In / Sign Up
+//  Setup Screen
 // ──────────────────────────────────────────────────
-
-// Tab switching
-[el.authTabSignin, el.authTabSignup].forEach(tab => {
-  tab.addEventListener('click', () => {
-    const isSignin = tab.dataset.authTab === 'signin';
-    el.authTabSignin.classList.toggle('active', isSignin);
-    el.authTabSignup.classList.toggle('active', !isSignin);
-    el.authSigninForm.classList.toggle('hidden', !isSignin);
-    el.authSignupForm.classList.toggle('hidden', isSignin);
-    el.setupError.classList.add('hidden');
-  });
+el.apiKeyInput.addEventListener('input', () => {
+  const val = el.apiKeyInput.value.trim();
+  el.startBtn.disabled = val.length < 10;
+  el.setupError.classList.add('hidden');
 });
 
-// Toggle password visibility
-el.toggleSigninVis.addEventListener('click', () => {
-  const inp = el.signinPassword;
-  inp.type = inp.type === 'password' ? 'text' : 'password';
-});
-el.toggleSignupKeyVis.addEventListener('click', () => {
-  const inp = el.signupApikey;
-  inp.type = inp.type === 'password' ? 'text' : 'password';
+el.toggleKeyVis.addEventListener('click', () => {
+  const isPass = el.apiKeyInput.type === 'password';
+  el.apiKeyInput.type = isPass ? 'text' : 'password';
 });
 
-// Sign In
-el.signinBtn.addEventListener('click', async () => {
-  const email = el.signinEmail.value.trim();
-  const pass = el.signinPassword.value;
-  if (!email || !pass) { showSetupError('Please fill in all fields.'); return; }
-
-  el.signinBtn.disabled = true;
-  el.signinBtn.querySelector('span').textContent = 'Signing in…';
-  try {
-    const valid = await UserDB.verifyPassword(email, pass);
-    if (!valid) { showSetupError('Invalid email or password.'); return; }
-    const user = UserDB.getUser(email);
-    STATE.apiKey = user.apiKey;
-    STATE.userEmail = email.toLowerCase();
-    STATE.userName = user.name;
-    if (user.prefs) {
-      STATE.session.bgColor = user.prefs.defaultBgColor || '#FFEEDC';
-      STATE.upscaleResolution = user.prefs.upscaleResolution || '4k';
-    }
-    UserDB.saveSession(email, el.signinRemember.checked);
-    launchApp();
-  } catch (err) {
-    showSetupError(err.message);
-  } finally {
-    el.signinBtn.disabled = false;
-    el.signinBtn.querySelector('span').textContent = 'Sign In';
-  }
+el.startBtn.addEventListener('click', () => {
+  const key = el.apiKeyInput.value.trim();
+  if (key.length < 10) return;
+  STATE.apiKey = key;
+  localStorage.setItem('renderai_key', key);
+  launchApp();
 });
 
-// Sign Up
-el.signupBtn.addEventListener('click', async () => {
-  const name = el.signupName.value.trim();
-  const email = el.signupEmail.value.trim();
-  const pass = el.signupPassword.value;
-  const confirm = el.signupConfirm.value;
-  const apiKey = el.signupApikey.value.trim();
-
-  if (!name || !email || !pass || !apiKey) { showSetupError('Please fill in all fields.'); return; }
-  if (!email.includes('@')) { showSetupError('Please enter a valid email.'); return; }
-  if (pass.length < 6) { showSetupError('Password must be at least 6 characters.'); return; }
-  if (pass !== confirm) { showSetupError('Passwords do not match.'); return; }
-  if (apiKey.length < 10) { showSetupError('Please enter a valid Gemini API key.'); return; }
-
-  el.signupBtn.disabled = true;
-  el.signupBtn.querySelector('span').textContent = 'Creating…';
-  try {
-    await UserDB.createUser(name, email, pass, apiKey);
-    STATE.apiKey = apiKey;
-    STATE.userEmail = email.toLowerCase();
-    STATE.userName = name;
-    UserDB.saveSession(email, true);
-    showToast('Account created! Welcome, ' + name + ' 🎉');
-    launchApp();
-  } catch (err) {
-    showSetupError(err.message);
-  } finally {
-    el.signupBtn.disabled = false;
-    el.signupBtn.querySelector('span').textContent = 'Create Account';
-  }
-});
-
-// Enter key on auth inputs
-document.querySelectorAll('#auth-signin-form input').forEach(inp => {
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') el.signinBtn.click(); });
-});
-document.querySelectorAll('#auth-signup-form input').forEach(inp => {
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') el.signupBtn.click(); });
-});
-
-// Logout
-el.logoutBtn.addEventListener('click', () => {
-  UserDB.clearSession();
-  STATE.apiKey = '';
-  STATE.userEmail = null;
-  STATE.userName = null;
-  el.profileBtn.classList.add('hidden');
+el.changeKeyBtn.addEventListener('click', () => {
   switchScreen('setup');
-  showToast('Signed out');
+  el.apiKeyInput.value = STATE.apiKey;
+  el.startBtn.disabled = false;
 });
 
 el.newSessionBtn.addEventListener('click', () => {
@@ -413,204 +165,16 @@ el.newSessionBtn.addEventListener('click', () => {
 });
 
 function launchApp() {
-  if (STATE.userName) {
-    el.userNameDisplay.textContent = STATE.userName;
-    el.profileBtn.classList.remove('hidden');
-  }
   switchScreen('app');
   resetSession(true);
 }
 
-function showSetupError(msg) {
-  el.setupError.textContent = msg;
-  el.setupError.classList.remove('hidden');
-  setTimeout(() => el.setupError.classList.add('hidden'), 6000);
+// Try restoring saved key
+const savedKey = localStorage.getItem('renderai_key');
+if (savedKey) {
+  el.apiKeyInput.value = savedKey;
+  el.startBtn.disabled = false;
 }
-
-// ── Custom Palette Rendering ──
-function renderUserPalette() {
-  if (!STATE.userEmail) return;
-  const palette = UserDB.getPalette(STATE.userEmail);
-  el.cpPaletteSwatches.innerHTML = '';
-  palette.forEach(hex => {
-    const swatch = document.createElement('button');
-    swatch.className = 'cp-palette-swatch';
-    swatch.style.background = hex;
-    swatch.title = hex;
-    swatch.innerHTML = `<span class="swatch-remove" title="Remove">×</span>`;
-    // Click swatch = use color
-    swatch.addEventListener('click', (e) => {
-      if (e.target.classList.contains('swatch-remove')) {
-        UserDB.removeFromPalette(STATE.userEmail, hex);
-        renderUserPalette();
-        showToast(`Removed ${hex} from palette`);
-        return;
-      }
-      const hsv = hexToHsv(hex);
-      CP.hue = hsv.h; CP.sat = hsv.s; CP.val = hsv.v;
-      drawGradient(); syncCPUI();
-    });
-    el.cpPaletteSwatches.appendChild(swatch);
-  });
-  el.cpPaletteCount.textContent = `${palette.length}/${UserDB.MAX_PALETTE}`;
-}
-
-// Save color button
-el.cpSaveColorBtn.addEventListener('click', () => {
-  if (!STATE.userEmail) { showToast('Sign in to save colors'); return; }
-  const hex = hsvToHex(CP.hue, CP.sat, CP.val);
-  UserDB.addToPalette(STATE.userEmail, hex);
-  renderUserPalette();
-  showToast(`Saved ${hex} to palette ✨`);
-});
-
-// ── Auto-login on page load ──
-(async function autoLogin() {
-  const session = UserDB.getSession();
-  if (!session?.email) return;
-  const user = UserDB.getUser(session.email);
-  if (!user) { UserDB.clearSession(); return; }
-  STATE.apiKey = user.apiKey;
-  STATE.userEmail = session.email;
-  STATE.userName = user.name;
-  if (user.prefs) {
-    STATE.session.bgColor = user.prefs.defaultBgColor || '#FFEEDC';
-    STATE.upscaleResolution = user.prefs.upscaleResolution || '4k';
-  }
-  launchApp();
-})();
-
-// ──────────────────────────────────────────────────
-//  Profile Panel
-// ──────────────────────────────────────────────────
-function openProfile() {
-  if (!STATE.userEmail) return;
-  const user = UserDB.getUser(STATE.userEmail);
-  if (!user) return;
-
-  // Populate user info
-  el.profileAvatar.textContent = (user.name || 'U').charAt(0).toUpperCase();
-  el.profileName.textContent = user.name || '—';
-  el.profileEmail.textContent = STATE.userEmail;
-  el.profileJoined.textContent = user.createdAt
-    ? `Joined ${new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`
-    : '';
-
-  // API Key
-  el.profileApiKey.value = user.apiKey || '';
-  el.profileApiKey.type = 'password';
-  el.profileApiKey.readOnly = true;
-  el.profileKeySave.classList.add('hidden');
-  el.profileKeyEdit.classList.remove('hidden');
-
-  // Stats
-  const history = user.renderHistory || [];
-  el.profileStatRenders.textContent = history.length;
-  el.profileStatColors.textContent = (user.palette || []).length;
-
-  // Top style
-  if (history.length > 0) {
-    const styleCounts = {};
-    history.forEach(h => {
-      if (h.style) {
-        // Extract short label from style string
-        const parts = h.style.split(' ');
-        const label = parts.length > 1 ? parts.slice(0, 2).join(' ') : parts[0];
-        styleCounts[label] = (styleCounts[label] || 0) + 1;
-      }
-    });
-    const top = Object.entries(styleCounts).sort((a, b) => b[1] - a[1])[0];
-    el.profileStatStyle.textContent = top ? top[0] : '—';
-  } else {
-    el.profileStatStyle.textContent = '—';
-  }
-
-  // Render gallery
-  el.profileGallery.innerHTML = '';
-  if (history.length === 0) {
-    // Empty state handled by CSS ::after
-  } else {
-    // Show newest first
-    [...history].reverse().forEach(entry => {
-      const card = document.createElement('div');
-      card.className = 'gallery-card';
-
-      const date = new Date(entry.ts);
-      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-      if (entry.thumb) {
-        const img = document.createElement('img');
-        img.className = 'gallery-thumb';
-        img.src = entry.thumb;
-        img.alt = entry.subject || 'Render';
-        card.appendChild(img);
-      } else {
-        // Placeholder for renders without thumbnails
-        const ph = document.createElement('div');
-        ph.className = 'gallery-thumb';
-        ph.style.cssText = `background:${entry.bgColor || '#FFEEDC'};display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(0,0,0,0.3);`;
-        ph.textContent = entry.subject?.charAt(0)?.toUpperCase() || '?';
-        card.appendChild(ph);
-      }
-
-      const meta = document.createElement('div');
-      meta.className = 'gallery-meta';
-      meta.innerHTML = `
-        <div class="gallery-subject">${entry.subject || 'Untitled'}<span class="gallery-color-dot" style="background:${entry.bgColor || '#FFEEDC'}"></span></div>
-        <div class="gallery-date">${dateStr}</div>
-      `;
-      card.appendChild(meta);
-      el.profileGallery.appendChild(card);
-    });
-  }
-
-  el.profileOverlay.classList.remove('hidden');
-}
-
-function closeProfile() {
-  el.profileOverlay.classList.add('hidden');
-  // Cancel any pending edit
-  el.profileApiKey.readOnly = true;
-  el.profileApiKey.type = 'password';
-  el.profileKeySave.classList.add('hidden');
-  el.profileKeyEdit.classList.remove('hidden');
-}
-
-// Profile button click
-el.profileBtn.addEventListener('click', openProfile);
-
-// Close profile
-el.profileCloseBtn.addEventListener('click', closeProfile);
-el.profileOverlay.addEventListener('click', (e) => {
-  if (e.target === el.profileOverlay) closeProfile();
-});
-
-// Toggle API key visibility
-el.profileKeyToggle.addEventListener('click', () => {
-  el.profileApiKey.type = el.profileApiKey.type === 'password' ? 'text' : 'password';
-});
-
-// Edit API key
-el.profileKeyEdit.addEventListener('click', () => {
-  el.profileApiKey.readOnly = false;
-  el.profileApiKey.type = 'text';
-  el.profileApiKey.focus();
-  el.profileKeySave.classList.remove('hidden');
-  el.profileKeyEdit.classList.add('hidden');
-});
-
-// Save API key
-el.profileKeySave.addEventListener('click', () => {
-  const newKey = el.profileApiKey.value.trim();
-  if (newKey.length < 10) { showToast('API key too short'); return; }
-  STATE.apiKey = newKey;
-  UserDB.updateUser(STATE.userEmail, { apiKey: newKey });
-  el.profileApiKey.readOnly = true;
-  el.profileApiKey.type = 'password';
-  el.profileKeySave.classList.add('hidden');
-  el.profileKeyEdit.classList.remove('hidden');
-  showToast('API key updated ✓');
-});
 
 // ──────────────────────────────────────────────────
 //  Screen Transitions
@@ -635,12 +199,8 @@ function switchScreen(name) {
 function resetSession(initial = false) {
   STATE.phase = 'idle';
   STATE.currentImage = null;
-  // Revoke any blob URLs to free memory
   STATE.renderedUrl = null;
-  STATE.renderedDisplayUrl = null;
   STATE.rawRenderedUrl = null;
-  STATE.originalRenderedUrl = null;
-  STATE.originalDisplayUrl = null;
   STATE.session = { subject: '', bgColor: '#FFEEDC', style: '' };
 
   // Reset UI
@@ -811,8 +371,6 @@ function showColorPicker() {
   drawHueBar();
   drawGradient();
   syncCPUI();
-  // Render saved palette
-  renderUserPalette();
 }
 
 // ── HSV ↔ RGB ↔ Hex conversions ──
@@ -959,8 +517,6 @@ document.querySelectorAll('.cp-swatch').forEach(swatch => {
 el.cpConfirmBtn.addEventListener('click', () => {
   addUserMessage(`Background: ${STATE.session.bgColor.toUpperCase()}`);
   el.colorPickerCard.classList.add('hidden');
-  // Save preferred bg color
-  if (STATE.userEmail) UserDB.updatePrefs(STATE.userEmail, { defaultBgColor: STATE.session.bgColor });
   STATE.phase = 'style-wait';
   askStyle();
 });
@@ -1013,50 +569,14 @@ async function startRendering() {
     timers.forEach(clearTimeout);
     steps.forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
 
-    // Store raw Gemini output directly (no composition)
+    // Show result — compose to 4K with background
     STATE.rawRenderedUrl = imageData;
-    STATE.renderedUrl = imageData;
-    STATE.renderedDisplayUrl = imageData;
-    STATE.originalRenderedUrl = imageData;
-    STATE.originalDisplayUrl = imageData;
+    const renderedAt4K = await composeTo4K(imageData, STATE.session.bgColor);
+    STATE.renderedUrl = renderedAt4K;
+    STATE.originalRenderedUrl = renderedAt4K;
     STATE.isAdjustedVersion = false;
     STATE.imageCount++;
-
-    // Track render for AI learning + save thumbnail
-    if (STATE.userEmail) {
-      // Generate tiny thumbnail for gallery (160px wide JPEG)
-      let thumb = '';
-      try {
-        const thumbCanvas = document.createElement('canvas');
-        const thumbImg = new Image();
-        thumbImg.crossOrigin = 'anonymous';
-        await new Promise((resolve) => {
-          thumbImg.onload = resolve;
-          thumbImg.onerror = resolve;
-          thumbImg.src = imageData;
-        });
-        const scale = 160 / thumbImg.naturalWidth;
-        thumbCanvas.width = 160;
-        thumbCanvas.height = Math.round(thumbImg.naturalHeight * scale);
-        thumbCanvas.getContext('2d').drawImage(thumbImg, 0, 0, thumbCanvas.width, thumbCanvas.height);
-        thumb = thumbCanvas.toDataURL('image/jpeg', 0.6);
-      } catch (e) { console.warn('Thumbnail generation failed:', e); }
-
-      UserDB.addRenderHistory(STATE.userEmail, {
-        subject: STATE.session.subject,
-        bgColor: STATE.session.bgColor,
-        style: STATE.session.style,
-        adjustments: [],
-        thumb,
-      });
-      // Save last-used preferences
-      UserDB.updatePrefs(STATE.userEmail, {
-        defaultBgColor: STATE.session.bgColor,
-        defaultStyle: STATE.session.style,
-      });
-    }
-
-    displayResult(imageData);
+    displayResult(renderedAt4K);
   } catch (err) {
     console.error(err);
     timers.forEach(clearTimeout);
@@ -1118,17 +638,13 @@ async function callGeminiWithModel(model, base64, mimeType, prompt) {
     }
   };
 
-  // Build URL and headers based on auth method
-  let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  const headers = { 'Content-Type': 'application/json' };
-  url += `?key=${STATE.apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${STATE.apiKey}`;
 
   const res = await fetch(url, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
@@ -1181,22 +697,11 @@ async function callGeminiWithModel(model, base64, mimeType, prompt) {
 function buildRenderPrompt(adjustNotes = '') {
   const adj = adjustNotes ? `\nAdditional change: ${adjustNotes}.` : '';
   const bgHex = STATE.session.bgColor || '#FFEEDC';
-
-  // AI Learning: enhance prompt with insights from render history
-  let learnedContext = '';
-  if (STATE.userEmail) {
-    const insights = UserDB.getLearnedInsights(STATE.userEmail, STATE.session.subject);
-    if (insights && insights.similarRenders > 0) {
-      const details = insights.similarDetails.map(d => `${d.subject} (${d.style?.split(' ').slice(0,2).join(' ')})`).join(', ');
-      learnedContext = `\n\nContext from previous successful renders of similar subjects: ${details}. Apply learned aesthetic preferences.`;
-    }
-  }
-
   return `Edit this image to create an ultra-realistic professional photograph at the highest possible resolution.
 
 Subject: ${STATE.session.subject}
 Background: replace the background with a smooth, seamless solid color background, hex color ${bgHex}. No gradients, no textures — perfectly flat solid color fill extending to all edges.
-Style: ${STATE.session.style}${adj}${learnedContext}
+Style: ${STATE.session.style}${adj}
 
 Instructions: Keep the subject identical. Replace all background pixels with the specified solid color. Apply professional photographic lighting, clean shadows underneath the subject, and output the complete edited image at maximum quality and resolution.`;
 }
@@ -1208,133 +713,34 @@ IMPORTANT: Keep everything else EXACTLY the same — same subject, same composit
 }
 
 // ──────────────────────────────────────────────────
-//  AI Upscale — send image to Gemini for enhancement
-//  Uses the Gemini API to intelligently upscale the image
-//  with enhanced detail, sharpness, and texture quality.
-//  Falls back to canvas resize if AI upscale fails.
+//  4K Composition (3840×2400)
 // ──────────────────────────────────────────────────
-async function aiUpscale(renderedDataUrl, resolution) {
-  const resLabels = { '2k': '2K (2048px)', '4k': '4K (3840px)', '8k': '8K (7680px)' };
-  const resSizes = { '2k': 2048, '4k': 3840, '8k': 7680 };
-  const targetLong = resSizes[resolution] || resSizes['4k'];
-
-  // Prepare the image for the API
-  let base64, mimeType;
-  if (renderedDataUrl.startsWith('data:')) {
-    mimeType = renderedDataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-    base64 = renderedDataUrl.split(',')[1];
-  } else {
-    // Blob URL or other — convert via canvas
-    const img = await loadImage(renderedDataUrl);
-    const cvs = document.createElement('canvas');
-    cvs.width = img.width; cvs.height = img.height;
-    cvs.getContext('2d').drawImage(img, 0, 0);
-    const dataUrl = cvs.toDataURL('image/jpeg', 0.92);
-    mimeType = 'image/jpeg';
-    base64 = dataUrl.split(',')[1];
-  }
-
-  const upscalePrompt = `Upscale and enhance this image to the highest resolution possible. 
-
-Instructions:
-- Significantly increase the resolution and detail of the image
-- Enhance textures, surface details, and fine features so they appear sharp at ${resLabels[resolution] || '4K'} resolution
-- Improve edge definition and micro-contrast
-- Add realistic fine-grain detail where the original appears soft or blurry
-- Preserve exact colors, composition, lighting, and subject — change NOTHING about the content
-- Output the complete enhanced image at maximum quality
-
-The goal is a professional ${resolution.toUpperCase()} quality image with razor-sharp details, not just a simple resize.`;
-
-  try {
-    console.log(`[RenderAI] AI Upscale: requesting ${resolution.toUpperCase()} enhancement via Gemini…`);
-    const enhancedDataUrl = await tryGeminiModels(base64, mimeType, upscalePrompt);
-    console.log(`[RenderAI] AI Upscale: received enhanced image`);
-
-    // Now resize the AI-enhanced image to the exact target resolution via canvas
-    const enhancedImg = await loadImage(enhancedDataUrl);
-    const aspect = enhancedImg.width / enhancedImg.height;
-    let W, H;
-    if (aspect >= 1) {
-      W = targetLong;
-      H = Math.round(targetLong / aspect);
-    } else {
-      H = targetLong;
-      W = Math.round(targetLong * aspect);
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(enhancedImg, 0, 0, W, H);
-
-    const quality = resolution === '8k' ? 0.88 : (resolution === '4k' ? 0.93 : 0.95);
-
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(blob => {
-        if (!blob) { reject(new Error('Upscale canvas export failed')); return; }
-        const dispScale = Math.min(1, 1920 / W);
-        const displayCanvas = document.createElement('canvas');
-        displayCanvas.width = Math.round(W * dispScale);
-        displayCanvas.height = Math.round(H * dispScale);
-        displayCanvas.getContext('2d').drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
-        const dataUrl = displayCanvas.toDataURL('image/jpeg', 0.88);
-        resolve({ blob, dataUrl, aiEnhanced: true });
-      }, 'image/jpeg', quality);
-    });
-
-  } catch (err) {
-    console.warn(`[RenderAI] AI Upscale failed, falling back to canvas resize:`, err.message);
-    // Fallback: simple canvas upscale
-    return canvasUpscale(renderedDataUrl, resolution);
-  }
-}
-
-// Canvas-only fallback upscale (no AI)
-async function canvasUpscale(renderedDataUrl, resolution) {
-  const resSizes = { '2k': 2048, '4k': 3840, '8k': 7680 };
-  const targetLong = resSizes[resolution] || resSizes['4k'];
-
-  const img = await loadImage(renderedDataUrl);
-  const aspect = img.width / img.height;
-  let W, H;
-  if (aspect >= 1) {
-    W = targetLong;
-    H = Math.round(targetLong / aspect);
-  } else {
-    H = targetLong;
-    W = Math.round(targetLong * aspect);
-  }
-
+async function composeTo4K(renderedDataUrl, bgColor) {
+  const TARGET_W = 3840, TARGET_H = 2400;
   const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = TARGET_W;
+  canvas.height = TARGET_H;
   const ctx = canvas.getContext('2d');
+
+  // Fill entire canvas with solid background color
+  ctx.fillStyle = bgColor || '#FFEEDC';
+  ctx.fillRect(0, 0, TARGET_W, TARGET_H);
+
+  // Load the Gemini-rendered image
+  const img = await loadImage(renderedDataUrl);
+
+  // Scale to fit within canvas, centered — background fills the rest
+  const scale = Math.min(TARGET_W / img.width, TARGET_H / img.height);
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const x = Math.round((TARGET_W - w) / 2);
+  const y = Math.round((TARGET_H - h) / 2);
+
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, W, H);
+  ctx.drawImage(img, x, y, w, h);
 
-  const quality = resolution === '8k' ? 0.85 : (resolution === '4k' ? 0.92 : 0.94);
-
-  return new Promise((resolve, reject) => {
-    try {
-      canvas.toBlob(blob => {
-        if (!blob) { reject(new Error('Upscale canvas export failed')); return; }
-        const dispScale = Math.min(1, 1920 / W);
-        const displayCanvas = document.createElement('canvas');
-        displayCanvas.width = Math.round(W * dispScale);
-        displayCanvas.height = Math.round(H * dispScale);
-        displayCanvas.getContext('2d').drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
-        const dataUrl = displayCanvas.toDataURL('image/jpeg', 0.88);
-        resolve({ blob, dataUrl, aiEnhanced: false });
-      }, 'image/jpeg', quality);
-    } catch (e) {
-      reject(e);
-    }
-  });
+  return canvas.toDataURL('image/jpeg', 0.94);
 }
 
 
@@ -1344,6 +750,7 @@ async function canvasUpscale(renderedDataUrl, resolution) {
 async function displayResult(renderedUrl) {
   stopCanvasAnimation();
   STATE.phase = 'result';
+  STATE.composedUrl = null;
   updateHeaderStatus('Render Complete');
 
   el.imageCount.textContent = STATE.imageCount;
@@ -1354,9 +761,6 @@ async function displayResult(renderedUrl) {
   el.afterImgSplit.src = renderedUrl;
   el.beforeImgSingle.src = orig;
   el.afterImgSingle.src = renderedUrl;
-
-  // Update download button to use full-res blob URL
-  el.downloadBtn.dataset.fullResUrl = STATE.renderedUrl;
 
   el.renderSubjectMeta.textContent = STATE.session.subject;
   el.renderBgMeta.textContent = STATE.session.bgColor;
@@ -1372,7 +776,7 @@ async function displayResult(renderedUrl) {
     const isAdj = STATE.isAdjustedVersion;
     const msg = isAdj
       ? '🔄 Adjustment applied! Look good? Keep it or go back to the first render.'
-      : '🎉 Render complete! Use <strong>AI Upscale & Export</strong> for enhanced high-resolution output.';
+      : '🎉 Render complete! Use <strong>Upscale & Export</strong> to choose resolution + template.';
     addAgentMessage(msg, false);
     showActionBtns();
     // Show/hide back button
@@ -1443,27 +847,27 @@ el.downloadBtn.addEventListener('click', triggerDownload);
 el.chatDownloadBtn.addEventListener('click', triggerDownload);
 
 function triggerDownload() {
-  const url = STATE.renderedUrl;
+  const url = STATE.composedUrl || STATE.renderedUrl;
   if (!url) return;
   const a = document.createElement('a');
   a.href = url;
-  a.download = `viso-render-${Date.now()}.jpg`;
-  document.body.appendChild(a);
+  a.download = `renderai-${Date.now()}.jpg`;
   a.click();
-  document.body.removeChild(a);
-  showToast('Rendered image downloaded!');
+  showToast(STATE.composedUrl ? 'Downloaded 4K export!' : 'Rendered image downloaded!');
 }
 
 el.previewBtn.addEventListener('click', () => {
-  const url = STATE.renderedUrl;
+  const url = STATE.composedUrl || STATE.renderedUrl;
   if (!url) return;
-  const win = window.open(url, '_blank');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.click();
-  }
+  const win = window.open();
+  const label = STATE.composedUrl ? '4K Export' : 'Render';
+  win.document.write(`
+    <html><head><title>RenderAI ${label} Preview</title>
+    <style>body{margin:0;background:#080b14;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    img{max-width:100%;max-height:100vh;object-fit:contain}</style></head>
+    <body><img src="${url}" alt="${label}"/></body></html>
+  `);
+  win.document.close();
 });
 
 // ── Upscale & Export button ──
@@ -1473,6 +877,8 @@ el.upscaleBtn.addEventListener('click', () => {
   // Sync state to UI defaults
   document.querySelectorAll('.up-res-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.res === STATE.upscaleResolution));
+  document.querySelectorAll('.up-tp-card').forEach(c =>
+    c.classList.toggle('active', c.dataset.template === STATE.selectedTemplate));
 });
 
 // Resolution picker
@@ -1484,92 +890,49 @@ document.querySelectorAll('.up-res-btn').forEach(btn => {
   });
 });
 
-// Export button — AI-powered upscale at chosen resolution
+// Upscale template picker
+document.querySelectorAll('.up-tp-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.up-tp-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    STATE.selectedTemplate = card.dataset.template;
+  });
+});
+
+// Export button — compose at chosen resolution with chosen template
 const EXPORT_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
 
 el.upExportBtn.addEventListener('click', async () => {
   el.upExportBtn.disabled = true;
-  el.upExportBtn.textContent = 'AI Enhancing…';
+  el.upExportBtn.textContent = 'Compositing…';
   const res = STATE.upscaleResolution;
-  el.upscalePicker.classList.add('hidden');
-
-  // Show processing animation during AI upscale
-  showPanel('processing');
-  el.processingTitle.textContent = `AI Upscaling to ${res.toUpperCase()}`;
-  el.processingSub.textContent = 'Enhancing details, textures & sharpness…';
-  animateProcessingCanvas();
-  steps_reset();
-  el.ps1.classList.add('active');
-  el.ps1.querySelector('span').textContent = 'Preparing image';
-
-  // Update step labels for upscale flow
-  el.ps2.querySelector('span').textContent = 'AI enhancement';
-  el.ps3.querySelector('span').textContent = 'Scaling to ' + res.toUpperCase();
-  el.ps4.querySelector('span').textContent = 'Finalizing export';
-
-  // Animate steps
-  const stepTimers = [];
-  stepTimers.push(setTimeout(() => {
-    el.ps1.classList.remove('active'); el.ps1.classList.add('done');
-    el.ps2.classList.add('active');
-  }, 1200));
-  stepTimers.push(setTimeout(() => {
-    el.ps2.classList.remove('active'); el.ps2.classList.add('done');
-    el.ps3.classList.add('active');
-  }, 4000));
-
-  addAgentMessage(`🔬 AI-enhancing your render to <strong>${res.toUpperCase()}</strong>… This may take 15–30 seconds.`, false);
-
+  const tpl = STATE.selectedTemplate;
+  showToast(`Generating ${res.toUpperCase()} export…`);
   try {
-    const srcUrl = STATE.rawRenderedUrl || STATE.renderedUrl;
-    const { blob, dataUrl, aiEnhanced } = await aiUpscale(srcUrl, res);
-
-    // Complete all steps
-    stepTimers.forEach(clearTimeout);
-    steps_complete();
-    el.ps4.querySelector('span').textContent = 'Finalizing export';
-
-    // Restore step labels for future renders
-    setTimeout(() => {
-      el.ps1.querySelector('span').textContent = 'Analyzing subject';
-      el.ps2.querySelector('span').textContent = 'Crafting prompt';
-      el.ps3.querySelector('span').textContent = 'Rendering with Gemini';
-      el.ps4.querySelector('span').textContent = 'Finalizing output';
-    }, 500);
-
-    stopCanvasAnimation();
-    showPanel('comparison');
-
-    // Update comparison view with AI-enhanced image
-    el.afterImgSplit.src = dataUrl;
-    el.afterImgSingle.src = dataUrl;
-
-    // Download via blob URL
+    const { blob, dataUrl } = await composeWithTemplate(STATE.renderedUrl, tpl, STATE.session.bgColor, res);
+    STATE.composedUrl = dataUrl;
+    // Download via blob URL (far more memory-efficient than data URL for large canvases)
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `viso-render-${res}-ai-${Date.now()}.jpg`;
+    a.download = `viso-render-${tpl}-${res}-${Date.now()}.jpg`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-
     el.upExportBtn.disabled = false;
     el.upExportBtn.innerHTML = `${EXPORT_SVG} Export`;
-
-    const method = aiEnhanced ? '✨ AI-enhanced' : '📐 Canvas upscaled (AI unavailable)';
     showToast(`✅ ${res.toUpperCase()} file downloaded!`);
-    addAgentMessage(`${method} <strong>${res.toUpperCase()}</strong> render downloaded!`, false);
+    addAgentMessage(`🎨 <strong>${res.toUpperCase()}</strong> export with <strong>${tpl === 'none' ? 'no template' : tpl + ' text'}</strong> template downloaded!`, false);
+    // Update comparison view to show composed version
+    el.afterImgSplit.src = dataUrl;
+    el.afterImgSingle.src = dataUrl;
+    el.upscalePicker.classList.add('hidden');
     showActionBtns();
   } catch (err) {
-    stepTimers.forEach(clearTimeout);
-    stopCanvasAnimation();
-    showPanel('comparison');
     el.upExportBtn.disabled = false;
     el.upExportBtn.innerHTML = `${EXPORT_SVG} Export`;
     showToast('Export failed: ' + err.message);
-    addAgentMessage(`⚠️ Upscale failed: ${err.message}`, false);
-    showActionBtns();
     console.error(err);
   }
 });
@@ -1578,11 +941,10 @@ el.upExportBtn.addEventListener('click', async () => {
 el.backOriginalBtn.addEventListener('click', () => {
   if (!STATE.originalRenderedUrl) return;
   STATE.renderedUrl = STATE.originalRenderedUrl;
-  STATE.renderedDisplayUrl = STATE.originalDisplayUrl;
   STATE.isAdjustedVersion = false;
-  // Update images with display URL for the comparison view
-  el.afterImgSplit.src = STATE.originalDisplayUrl || STATE.originalRenderedUrl;
-  el.afterImgSingle.src = STATE.originalDisplayUrl || STATE.originalRenderedUrl;
+  // Update images
+  el.afterImgSplit.src = STATE.originalRenderedUrl;
+  el.afterImgSingle.src = STATE.originalRenderedUrl;
   el.backOriginalRow.classList.add('hidden');
   addAgentMessage('← Restored to first render. You can adjust again or upscale & export.', false);
   showActionBtns();
@@ -1591,7 +953,111 @@ el.backOriginalBtn.addEventListener('click', () => {
 // ──────────────────────────────────────────────────
 //  Compose With PNG Template Assets
 // ──────────────────────────────────────────────────
-// (template composition and drawVisoV removed — pure upscale only)
+async function composeWithTemplate(renderedDataUrl, templateId, bgColor, resolution) {
+  const resDims = {
+    '2k': { W: 2048, H: 1280 },
+    '4k': { W: 3840, H: 2160 },
+    '8k': { W: 7680, H: 4320 },
+  };
+  const { W, H } = resDims[resolution] || resDims['4k'];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // 1. Background fill
+  ctx.fillStyle = bgColor || '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. Product render centered
+  if (renderedDataUrl) {
+    const img = await loadImage(renderedDataUrl);
+    const maxW = W * 0.80, maxH = H * 0.82;
+    const scale = Math.min(maxW / img.width, maxH / img.height);
+    const dw = img.width * scale, dh = img.height * scale;
+    ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  }
+
+  if (templateId !== 'none') {
+    const mX = W * 0.035;   // horizontal margin
+    const mY = H * 0.038;   // vertical margin
+
+    // 3. Text overlay — left bottom
+    //    'dark' → dark text.png  |  'white' → white text.png
+    const textFile = templateId === 'dark' ? 'dark text.png' : 'white text.png';
+    try {
+      const textImg = await loadImage(textFile);
+      const tw = W * 0.30;
+      const th = textImg.height * (tw / textImg.width);
+      ctx.drawImage(textImg, mX, H - th - mY, tw, th);
+    } catch (e) {
+      // Fallback if PNG not found
+      ctx.fillStyle = templateId === 'dark' ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.8)';
+      ctx.font = `${Math.round(W * 0.008)}px Arial`;
+      ctx.fillText('RENDERING IS A REPRESENTATION OF THE FIXTURE', mX, H - mY * 2.5);
+      ctx.fillText('FINISH SAMPLE TO BE CONFIRMED', mX, H - mY * 1.5);
+    }
+
+    // 4. Logo — right bottom  (logo.png)
+    try {
+      const logoImg = await loadImage('logo.png');
+      const lw = W * 0.10;
+      const lh = logoImg.height * (lw / logoImg.width);
+      ctx.drawImage(logoImg, W - lw - mX, H - lh - mY, lw, lh);
+    } catch (e) {
+      // Fallback VISO V mark
+      drawVisoV(ctx, W - W * 0.06 - mX, H - H * 0.06 - mY, W * 0.022);
+    }
+  }
+
+  // Adaptive quality — lower for larger resolutions to reduce memory pressure
+  const quality = resolution === '8k' ? 0.85 : (resolution === '4k' ? 0.92 : 0.94);
+
+  // Return both blob (for download) and dataUrl (for display)
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('Canvas export failed')); return; }
+        // Also generate a smaller data URL for display in the comparison view
+        const displayCanvas = document.createElement('canvas');
+        const dispScale = Math.min(1, 1920 / W);  // cap display at 1920px wide
+        displayCanvas.width = Math.round(W * dispScale);
+        displayCanvas.height = Math.round(H * dispScale);
+        const dctx = displayCanvas.getContext('2d');
+        dctx.drawImage(canvas, 0, 0, displayCanvas.width, displayCanvas.height);
+        const dataUrl = displayCanvas.toDataURL('image/jpeg', 0.88);
+        resolve({ blob, dataUrl });
+      }, 'image/jpeg', quality);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+
+
+function drawVisoV(ctx, cx, cy, s) {
+  // Two parallelogram arms forming a V
+  ctx.fillStyle = '#F0A500';
+  // Left arm
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.55, cy - s * 0.45);
+  ctx.lineTo(cx - s * 0.22, cy - s * 0.45);
+  ctx.lineTo(cx + s * 0.05, cy + s * 0.40);
+  ctx.lineTo(cx - s * 0.28, cy + s * 0.40);
+  ctx.closePath();
+  ctx.fill();
+  // Right arm
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.55, cy - s * 0.45);
+  ctx.lineTo(cx + s * 0.22, cy - s * 0.45);
+  ctx.lineTo(cx - s * 0.05, cy + s * 0.40);
+  ctx.lineTo(cx + s * 0.28, cy + s * 0.40);
+  ctx.closePath();
+  ctx.fill();
+}
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
@@ -1774,19 +1240,10 @@ el.applyAdjBtn.addEventListener('click', async () => {
     inputBase64 = annotatedB64;
     inputMime = 'image/jpeg';
   } else {
-    // Use the RAW rendered image (pre-4K data URL) for efficient API calls
-    const rawUrl = STATE.rawRenderedUrl;
-    if (!rawUrl || !rawUrl.startsWith('data:')) {
-      // Fallback: convert the blob URL to base64 via canvas
-      const img = await loadImage(STATE.renderedUrl);
-      const cvs = document.createElement('canvas');
-      cvs.width = img.width; cvs.height = img.height;
-      cvs.getContext('2d').drawImage(img, 0, 0);
-      const fallbackUrl = cvs.toDataURL('image/jpeg', 0.88);
-      inputBase64 = fallbackUrl.split(',')[1];
-    } else {
-      inputBase64 = rawUrl.split(',')[1];
-    }
+    // Use the RAW rendered image (pre-4K) for efficient API calls
+    const rawUrl = STATE.rawRenderedUrl || STATE.renderedUrl;
+    const rendered64 = rawUrl.split(',')[1];
+    inputBase64 = rendered64;
     inputMime = 'image/jpeg';
   }
 
@@ -1809,10 +1266,10 @@ el.applyAdjBtn.addEventListener('click', async () => {
 
     steps_complete();
     STATE.rawRenderedUrl = imageData;
-    STATE.renderedUrl = imageData;
-    STATE.renderedDisplayUrl = imageData;
+    const adjustedAt4K = await composeTo4K(imageData, STATE.session.bgColor);
+    STATE.renderedUrl = adjustedAt4K;
     STATE.isAdjustedVersion = true;   // mark as adjusted so "back" button shows
-    displayResult(imageData);
+    displayResult(adjustedAt4K);
   } catch (err) {
     console.error(err);
     stopCanvasAnimation();
@@ -1996,10 +1453,7 @@ el.nextImageBtn.addEventListener('click', () => {
   STATE.phase = 'idle';
   STATE.currentImage = null;
   STATE.renderedUrl = null;
-  STATE.renderedDisplayUrl = null;
   STATE.rawRenderedUrl = null;
-  STATE.originalRenderedUrl = null;
-  STATE.originalDisplayUrl = null;
   STATE.session = { subject: '', bgColor: '#FFEEDC', style: '' };
 
   showPanel('upload');
