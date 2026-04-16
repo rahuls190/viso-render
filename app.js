@@ -36,7 +36,7 @@ const UserDB = {
 
   getUser(email) { return this._getAll()[email.toLowerCase()] || null; },
 
-  async createUser(name, email, password, apiKey) {
+  async createUser(name, email, password, apiKey, securityQ = '', securityA = '') {
     email = email.toLowerCase();
     const users = this._getAll();
     if (users[email]) throw new Error('An account with this email already exists.');
@@ -48,6 +48,9 @@ const UserDB = {
       prefs: { defaultBgColor: '#FFEEDC', defaultStyle: '', upscaleResolution: '4k' },
       palette: [],
       renderHistory: [],
+      securityQ,
+      securityAHash: securityA ? await this.hash(securityA.toLowerCase().trim()) : '',
+      learningNotes: [],
     };
     this._saveAll(users);
     return users[email];
@@ -144,6 +147,72 @@ const UserDB = {
     localStorage.removeItem(this.SESSION_KEY);
     sessionStorage.removeItem(this.SESSION_KEY);
   },
+
+  // ── Security Question ──
+  SECURITY_QUESTIONS: {
+    pet: "What is your pet's name?",
+    city: 'What city were you born in?',
+    color: 'What is your favorite color?',
+    car: 'What was your first car?',
+    school: 'What was your first school?',
+  },
+
+  getSecurityQuestion(email) {
+    const user = this.getUser(email);
+    if (!user || !user.securityQ) return null;
+    return this.SECURITY_QUESTIONS[user.securityQ] || null;
+  },
+
+  async verifySecurityAnswer(email, answer) {
+    const user = this.getUser(email);
+    if (!user || !user.securityAHash) return false;
+    return user.securityAHash === await this.hash(answer.toLowerCase().trim());
+  },
+
+  async resetPassword(email, newPassword) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    if (!users[email]) return false;
+    users[email].passwordHash = await this.hash(newPassword);
+    this._saveAll(users);
+    return true;
+  },
+
+  // ── Custom Materials ──
+  CUSTOM_MATERIALS_KEY: 'viso_custom_materials',
+
+  getCustomMaterials() {
+    try { return JSON.parse(localStorage.getItem(this.CUSTOM_MATERIALS_KEY)) || []; }
+    catch { return []; }
+  },
+
+  addCustomMaterial(material) {
+    const materials = this.getCustomMaterials();
+    materials.push({ ...material, id: Date.now(), isCustom: true });
+    localStorage.setItem(this.CUSTOM_MATERIALS_KEY, JSON.stringify(materials));
+  },
+
+  removeCustomMaterial(id) {
+    let materials = this.getCustomMaterials();
+    materials = materials.filter(m => m.id !== id);
+    localStorage.setItem(this.CUSTOM_MATERIALS_KEY, JSON.stringify(materials));
+  },
+
+  // ── AI Learning Notes ──
+  addLearningNote(email, note) {
+    email = email.toLowerCase();
+    const users = this._getAll();
+    const user = users[email];
+    if (!user) return;
+    if (!user.learningNotes) user.learningNotes = [];
+    user.learningNotes.push({ ts: Date.now(), ...note });
+    if (user.learningNotes.length > 30) user.learningNotes = user.learningNotes.slice(-30);
+    this._saveAll(users);
+  },
+
+  getLearningNotes(email) {
+    return this.getUser(email)?.learningNotes || [];
+  },
 };
 
 // ──────────────────────────────────────────────────
@@ -160,7 +229,7 @@ const STATE = {
   rawRenderedUrl: null,              // original Gemini output, for efficient re-renders
   originalRenderedUrl: null,    // first render for this image (for "back" option)
   originalDisplayUrl: null,     // display version of first render
-  session: { subject: '', bgColor: '#FFEEDC', style: '' },
+  session: { subject: '', bgColor: '#FFEEDC', style: '', material: null },
   upscaleResolution: '4k',      // '2k' | '4k' | '8k'
   imageCount: 0,
   splitPos: 50,
@@ -176,6 +245,76 @@ const STYLE_OPTIONS = [
   { icon: '🎭', label: 'Dark & Moody', sub: 'Dramatic chiaroscuro', value: 'dark moody cinematic style with dramatic chiaroscuro lighting, deep shadows, and rich contrast' },
   { icon: '✨', label: 'Fashion Editorial', sub: 'High-fashion magazine', value: 'high-fashion editorial photography style with bold, artistic composition and striking visual impact' },
   { icon: '🏆', label: 'Award-Winning', sub: 'Competition-level render', value: 'award-winning professional photography with cutting-edge rendering, masterful composition, and technical perfection' },
+];
+
+// ── Material Library (50+ VISO materials) ──
+const MATERIAL_LIBRARY = [
+  // Gold / Polished
+  { code: 'SS-PD-22', name: 'Mirror Gold', category: 'Gold / Polished', texture: 'mirror polished pure gold stainless steel with high reflective surface', color: '#D4A843' },
+  { code: 'SS-PD-23', name: 'Brushed Gold', category: 'Gold / Polished', texture: 'brushed gold stainless steel with fine directional grain', color: '#C5963A' },
+  { code: 'SS-PD-24', name: 'Satin Gold', category: 'Gold / Polished', texture: 'satin finish gold stainless steel with smooth matte sheen', color: '#BF9333' },
+  { code: 'SS-PD-25', name: 'Champagne Gold', category: 'Gold / Polished', texture: 'champagne gold polished stainless steel with warm undertones', color: '#D4B87A' },
+  { code: 'SS-PD-26', name: 'Light Gold', category: 'Gold / Polished', texture: 'light gold polished stainless steel with bright warm finish', color: '#E8C96A' },
+  { code: 'SS-PD-29', name: 'Antique Gold', category: 'Gold / Polished', texture: 'antique gold stainless steel with aged warm patina', color: '#B8963C' },
+  // Gold / Brushed
+  { code: 'SS9002', name: 'Hairline Champagne', category: 'Gold / Brushed', texture: 'hairline brushed champagne gold stainless steel with vertical grain pattern', color: '#B8A06A' },
+  { code: 'SS9003', name: 'Hairline Gold', category: 'Gold / Brushed', texture: 'hairline brushed gold stainless steel with fine vertical lines', color: '#C5A54A' },
+  { code: 'SS9005', name: 'Cross Brushed Gold', category: 'Gold / Brushed', texture: 'cross-pattern brushed gold stainless steel with intersecting grain', color: '#BFA050' },
+  { code: 'SS-PD-27', name: 'Vibration Gold', category: 'Gold / Brushed', texture: 'vibration-finish gold stainless steel with random swirl pattern', color: '#D4AA55' },
+  { code: 'SS-PD-28', name: 'Sandblast Gold', category: 'Gold / Brushed', texture: 'sandblasted gold stainless steel with uniform matte texture', color: '#C9A04B' },
+  { code: 'SS9007', name: 'Satin Brushed Gold', category: 'Gold / Brushed', texture: 'satin brushed gold with soft directional texture', color: '#C0984A' },
+  // Bronze / Antique
+  { code: 'SS-PD-03', name: 'Antique Bronze', category: 'Bronze / Antique', texture: 'antique bronze stainless steel with matte sandblasted patina', color: '#9C8A60' },
+  { code: 'SS9004', name: 'Hairline Bronze', category: 'Bronze / Antique', texture: 'hairline brushed antique bronze stainless steel with warm dark tones', color: '#7A6B4E' },
+  { code: 'SS9006', name: 'Dark Bronze', category: 'Bronze / Antique', texture: 'dark bronze stainless steel with deep brown patina finish', color: '#6B5A3E' },
+  { code: 'SS-PD-30', name: 'Aged Bronze', category: 'Bronze / Antique', texture: 'aged bronze stainless steel with natural oxidized patina', color: '#8A7552' },
+  { code: 'SS-PD-31', name: 'Oil Rubbed Bronze', category: 'Bronze / Antique', texture: 'oil-rubbed bronze stainless steel with warm dark highlights', color: '#5D4E37' },
+  { code: 'SS-PD-32', name: 'Venetian Bronze', category: 'Bronze / Antique', texture: 'venetian bronze stainless steel with rich brown-gold undertones', color: '#7E6847' },
+  { code: 'SS-PD-33', name: 'Rustic Bronze', category: 'Bronze / Antique', texture: 'rustic bronze stainless steel with weathered texture', color: '#6E5B3D' },
+  // Silver / Chrome
+  { code: 'SS-SV-01', name: 'Mirror Silver', category: 'Silver / Chrome', texture: 'mirror polished silver stainless steel with high chrome reflectivity', color: '#C0C0C0' },
+  { code: 'SS-SV-02', name: 'Brushed Silver', category: 'Silver / Chrome', texture: 'brushed silver stainless steel with fine directional grain', color: '#A8A8A8' },
+  { code: 'SS-SV-03', name: 'Satin Silver', category: 'Silver / Chrome', texture: 'satin finish silver stainless steel with smooth matte sheen', color: '#B0B0B0' },
+  { code: 'SS-SV-04', name: 'Hairline Silver', category: 'Silver / Chrome', texture: 'hairline brushed silver stainless steel with vertical lines', color: '#9E9E9E' },
+  { code: 'SS-SV-05', name: 'Vibration Silver', category: 'Silver / Chrome', texture: 'vibration-finish silver stainless steel with orbital pattern', color: '#ADADAD' },
+  { code: 'SS-SV-06', name: 'Sandblast Silver', category: 'Silver / Chrome', texture: 'sandblasted silver stainless steel with matte texture', color: '#999999' },
+  { code: 'SS-SV-07', name: 'Cross Brush Silver', category: 'Silver / Chrome', texture: 'cross-pattern brushed silver stainless steel', color: '#A3A3A3' },
+  // Rose Gold
+  { code: 'SS-RG-01', name: 'Mirror Rose Gold', category: 'Rose Gold', texture: 'mirror polished rose gold stainless steel with pink-gold reflective finish', color: '#E8B4A0' },
+  { code: 'SS-RG-02', name: 'Brushed Rose Gold', category: 'Rose Gold', texture: 'brushed rose gold stainless steel with soft pink-gold grain', color: '#D4A08B' },
+  { code: 'SS-RG-03', name: 'Satin Rose Gold', category: 'Rose Gold', texture: 'satin finish rose gold stainless steel with warm pink sheen', color: '#CC9882' },
+  { code: 'SS-RG-04', name: 'Hairline Rose Gold', category: 'Rose Gold', texture: 'hairline brushed rose gold stainless steel with vertical pattern', color: '#C08E78' },
+  { code: 'SS-RG-05', name: 'Vibration Rose Gold', category: 'Rose Gold', texture: 'vibration rose gold stainless steel with orbital swirl', color: '#D4A894' },
+  // Copper
+  { code: 'SS-CP-01', name: 'Mirror Copper', category: 'Copper', texture: 'mirror polished copper stainless steel with warm reddish reflective surface', color: '#B87333' },
+  { code: 'SS-CP-02', name: 'Brushed Copper', category: 'Copper', texture: 'brushed copper stainless steel with directional grain and warm red tones', color: '#A66628' },
+  { code: 'SS-CP-03', name: 'Antique Copper', category: 'Copper', texture: 'antique copper stainless steel with aged patina finish', color: '#8B5E3C' },
+  { code: 'SS-CP-04', name: 'Hairline Copper', category: 'Copper', texture: 'hairline brushed copper stainless steel with fine vertical lines', color: '#996830' },
+  { code: 'SS-CP-05', name: 'Satin Copper', category: 'Copper', texture: 'satin finish copper stainless steel with matte warm sheen', color: '#A46B30' },
+  // Dark / Gunmetal
+  { code: 'SS-DK-01', name: 'Mirror Black', category: 'Dark / Gunmetal', texture: 'mirror polished black stainless steel with dark reflective surface', color: '#2A2A2A' },
+  { code: 'SS-DK-02', name: 'Brushed Gunmetal', category: 'Dark / Gunmetal', texture: 'brushed gunmetal stainless steel with dark grey directional grain', color: '#3E3E3E' },
+  { code: 'SS-DK-03', name: 'Satin Black', category: 'Dark / Gunmetal', texture: 'satin finish black stainless steel with dark matte sheen', color: '#1E1E1E' },
+  { code: 'SS-DK-04', name: 'Hairline Black', category: 'Dark / Gunmetal', texture: 'hairline brushed black stainless steel with fine dark lines', color: '#333333' },
+  { code: 'SS-DK-05', name: 'Titanium Grey', category: 'Dark / Gunmetal', texture: 'titanium grey stainless steel with cool dark metallic finish', color: '#4A4A4A' },
+  { code: 'SS-DK-06', name: 'Midnight Blue', category: 'Dark / Gunmetal', texture: 'midnight blue PVD coated stainless steel with dark blue metallic', color: '#1C2340' },
+  { code: 'SS-DK-07', name: 'Charcoal', category: 'Dark / Gunmetal', texture: 'charcoal grey stainless steel with deep dark finish', color: '#363636' },
+  // Blue / PVD
+  { code: 'SS-BL-01', name: 'Mirror Blue', category: 'Blue / PVD', texture: 'mirror polished blue PVD coated stainless steel', color: '#4A6FA5' },
+  { code: 'SS-BL-02', name: 'Sapphire Blue', category: 'Blue / PVD', texture: 'sapphire blue PVD stainless steel with deep blue reflective surface', color: '#2E4A7A' },
+  { code: 'SS-BL-03', name: 'Sky Blue', category: 'Blue / PVD', texture: 'sky blue PVD coated stainless steel with soft blue metallic', color: '#6A9BC6' },
+  // Wine / Red
+  { code: 'SS-WN-01', name: 'Wine Red', category: 'Wine / Red', texture: 'wine red PVD coated stainless steel with deep burgundy finish', color: '#722F37' },
+  { code: 'SS-WN-02', name: 'Burgundy', category: 'Wine / Red', texture: 'burgundy PVD stainless steel with rich dark red metallic surface', color: '#5E2129' },
+  // Green / Olive
+  { code: 'SS-GR-01', name: 'Forest Green', category: 'Green / Olive', texture: 'forest green PVD coated stainless steel with deep green metallic', color: '#2D4A2D' },
+  { code: 'SS-GR-02', name: 'Olive', category: 'Green / Olive', texture: 'olive green PVD stainless steel with muted warm green finish', color: '#5A6B32' },
+  // Patterned
+  { code: 'SS-PT-01', name: 'Etched Floral', category: 'Patterned', texture: 'etched floral pattern on gold stainless steel with decorative elements', color: '#C5A54A' },
+  { code: 'SS-PT-02', name: 'Honeycomb', category: 'Patterned', texture: 'honeycomb etched pattern on silver stainless steel', color: '#A8A8A8' },
+  { code: 'SS-PT-03', name: 'Hammered Gold', category: 'Patterned', texture: 'hammered texture gold stainless steel with artisan dimpled surface', color: '#D4AA55' },
+  { code: 'SS-PT-04', name: 'Water Ripple', category: 'Patterned', texture: 'water ripple pattern stainless steel with organic wave texture', color: '#B0B0B0' },
+  { code: 'SS-PT-05', name: 'Linen Texture', category: 'Patterned', texture: 'linen weave texture stainless steel with fabric-like surface', color: '#C0B8A8' },
 ];
 
 // ──────────────────────────────────────────────────
@@ -298,6 +437,48 @@ const el = {
   profileStatColors: $('profile-stat-colors'),
   profileStatStyle: $('profile-stat-style'),
   profileGallery: $('profile-gallery'),
+  // forgot password
+  forgotPasswordLink: $('forgot-password-link'),
+  authForgotForm: $('auth-forgot-form'),
+  forgotEmail: $('forgot-email'),
+  forgotLookupBtn: $('forgot-lookup-btn'),
+  forgotQuestionSection: $('forgot-question-section'),
+  forgotQuestionLabel: $('forgot-question-label'),
+  forgotAnswer: $('forgot-answer'),
+  forgotNewPassword: $('forgot-new-password'),
+  forgotConfirmPassword: $('forgot-confirm-password'),
+  forgotResetBtn: $('forgot-reset-btn'),
+  forgotBackBtn: $('forgot-back-btn'),
+  signupSecurityQ: $('signup-security-q'),
+  signupSecurityA: $('signup-security-a'),
+  // material picker
+  materialPickerCard: $('material-picker-card'),
+  mpSearch: $('mp-search'),
+  mpCategoryTabs: $('mp-category-tabs'),
+  mpGrid: $('mp-grid'),
+  mpSelectedInfo: $('mp-selected-info'),
+  mpSelSwatch: $('mp-sel-swatch'),
+  mpSelName: $('mp-sel-name'),
+  mpSelDesc: $('mp-sel-desc'),
+  mpAddCustomBtn: $('mp-add-custom-btn'),
+  mpCustomForm: $('mp-custom-form'),
+  mpCustomFile: $('mp-custom-file'),
+  mpCustomPreview: $('mp-custom-preview'),
+  mpCustomName: $('mp-custom-name'),
+  mpCustomCategory: $('mp-custom-category'),
+  mpCustomDesc: $('mp-custom-desc'),
+  mpCustomCancel: $('mp-custom-cancel'),
+  mpCustomSave: $('mp-custom-save'),
+  mpSkipBtn: $('mp-skip-btn'),
+  mpConfirmBtn: $('mp-confirm-btn'),
+  // AI describe
+  aiDescribeRow: $('ai-describe-row'),
+  aiDescribeBtn: $('ai-describe-btn'),
+  // learning insights
+  learningPatternsCount: $('learning-patterns-count'),
+  learningFavMaterial: $('learning-fav-material'),
+  learningNotesCount: $('learning-notes-count'),
+  learningNotesList: $('learning-notes-list'),
 };
 
 // ──────────────────────────────────────────────────
@@ -362,17 +543,20 @@ el.signupBtn.addEventListener('click', async () => {
   const pass = el.signupPassword.value;
   const confirm = el.signupConfirm.value;
   const apiKey = el.signupApikey.value.trim();
+  const secQ = el.signupSecurityQ.value;
+  const secA = el.signupSecurityA.value.trim();
 
   if (!name || !email || !pass || !apiKey) { showSetupError('Please fill in all fields.'); return; }
   if (!email.includes('@')) { showSetupError('Please enter a valid email.'); return; }
   if (pass.length < 6) { showSetupError('Password must be at least 6 characters.'); return; }
   if (pass !== confirm) { showSetupError('Passwords do not match.'); return; }
+  if (!secQ || !secA) { showSetupError('Please select a security question and provide an answer.'); return; }
   if (apiKey.length < 10) { showSetupError('Please enter a valid Gemini API key.'); return; }
 
   el.signupBtn.disabled = true;
   el.signupBtn.querySelector('span').textContent = 'Creating…';
   try {
-    await UserDB.createUser(name, email, pass, apiKey);
+    await UserDB.createUser(name, email, pass, apiKey, secQ, secA);
     STATE.apiKey = apiKey;
     STATE.userEmail = email.toLowerCase();
     STATE.userName = name;
@@ -410,6 +594,72 @@ el.newSessionBtn.addEventListener('click', () => {
   if (STATE.phase === 'processing') { showToast('Processing in progress...'); return; }
   resetSession();
   showToast('New session started');
+});
+
+// ──────────────────────────────────────────────────
+//  Forgot Password Flow
+// ──────────────────────────────────────────────────
+function showForgotForm() {
+  el.authSigninForm.classList.add('hidden');
+  el.authSignupForm.classList.add('hidden');
+  el.authForgotForm.classList.remove('hidden');
+  el.authTabSignin.classList.remove('active');
+  el.authTabSignup.classList.remove('active');
+  el.setupError.classList.add('hidden');
+  el.forgotQuestionSection.classList.add('hidden');
+  el.forgotEmail.value = '';
+  el.forgotAnswer.value = '';
+  el.forgotNewPassword.value = '';
+  el.forgotConfirmPassword.value = '';
+}
+function showSigninForm() {
+  el.authForgotForm.classList.add('hidden');
+  el.authSigninForm.classList.remove('hidden');
+  el.authTabSignin.classList.add('active');
+  el.setupError.classList.add('hidden');
+}
+el.forgotPasswordLink.addEventListener('click', showForgotForm);
+el.forgotBackBtn.addEventListener('click', showSigninForm);
+
+// Lookup account
+el.forgotLookupBtn.addEventListener('click', () => {
+  const email = el.forgotEmail.value.trim();
+  if (!email) { showSetupError('Please enter your email.'); return; }
+  const question = UserDB.getSecurityQuestion(email);
+  if (!question) { showSetupError('No account found with that email, or no security question set.'); return; }
+  el.forgotQuestionLabel.textContent = question;
+  el.forgotQuestionSection.classList.remove('hidden');
+  el.setupError.classList.add('hidden');
+});
+
+// Reset password
+el.forgotResetBtn.addEventListener('click', async () => {
+  const email = el.forgotEmail.value.trim();
+  const answer = el.forgotAnswer.value.trim();
+  const newPass = el.forgotNewPassword.value;
+  const confirmPass = el.forgotConfirmPassword.value;
+  if (!answer) { showSetupError('Please answer the security question.'); return; }
+  if (newPass.length < 6) { showSetupError('New password must be at least 6 characters.'); return; }
+  if (newPass !== confirmPass) { showSetupError('Passwords do not match.'); return; }
+  el.forgotResetBtn.disabled = true;
+  el.forgotResetBtn.querySelector('span').textContent = 'Resetting…';
+  try {
+    const valid = await UserDB.verifySecurityAnswer(email, answer);
+    if (!valid) { showSetupError('Incorrect security answer. Please try again.'); return; }
+    await UserDB.resetPassword(email, newPass);
+    showToast('Password reset successfully! 🆗');
+    showSigninForm();
+    el.signinEmail.value = email;
+  } catch (err) {
+    showSetupError(err.message);
+  } finally {
+    el.forgotResetBtn.disabled = false;
+    el.forgotResetBtn.querySelector('span').textContent = 'Reset Password';
+  }
+});
+// Enter key on forgot inputs
+document.querySelectorAll('#auth-forgot-form input').forEach(inp => {
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') el.forgotResetBtn.click(); });
 });
 
 function launchApp() {
@@ -561,6 +811,30 @@ function openProfile() {
       `;
       card.appendChild(meta);
       el.profileGallery.appendChild(card);
+    });
+  }
+
+  // Populate learning insights
+  const learningNotes = UserDB.getLearningNotes(STATE.userEmail);
+  el.learningPatternsCount.textContent = history.length;
+  el.learningNotesCount.textContent = learningNotes.length;
+
+  // Favorite material
+  const matCounts = {};
+  history.forEach(r => {
+    if (r.material) { matCounts[r.material] = (matCounts[r.material] || 0) + 1; }
+  });
+  const topMat = Object.entries(matCounts).sort((a,b) => b[1] - a[1])[0];
+  el.learningFavMaterial.textContent = topMat ? topMat[0] : '—';
+
+  // Learning notes list
+  el.learningNotesList.innerHTML = '';
+  if (learningNotes.length > 0) {
+    [...learningNotes].reverse().slice(0, 10).forEach(note => {
+      const div = document.createElement('div');
+      div.className = 'learning-note';
+      div.textContent = note.note || '';
+      el.learningNotesList.appendChild(div);
     });
   }
 
@@ -734,6 +1008,51 @@ async function handleImageFile(file) {
   askSubject();
 }
 
+// ──────────────────────────────────────────────────
+//  AI Describe Image
+// ──────────────────────────────────────────────────
+async function describeImageWithAI() {
+  if (!STATE.currentImage) return;
+  el.aiDescribeBtn.disabled = true;
+  el.aiDescribeBtn.classList.add('loading');
+  el.aiDescribeBtn.querySelector('span:nth-child(2)').textContent = 'Analyzing...';
+  try {
+    const body = {
+      contents: [{
+        parts: [
+          { text: 'Describe the main subject of this image in one concise sentence (5-15 words). Focus on what the object/person/scene is. Do not describe the background or style. Just identify the subject. Examples of good responses: "A luxury leather handbag with gold hardware", "A person wearing a black suit", "Modern dining table with chairs", "A stainless steel water bottle". Respond with ONLY the description, nothing else.' },
+          { inline_data: { mime_type: STATE.currentImage.mimeType, data: STATE.currentImage.base64 } }
+        ]
+      }],
+      generationConfig: { responseModalities: ['TEXT'] }
+    };
+    let url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELS[0]}:generateContent?key=${STATE.apiKey}`;
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      // Try fallback model
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELS[1]}:generateContent?key=${STATE.apiKey}`;
+      const res2 = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res2.ok) throw new Error('AI description failed');
+      const data2 = await res2.json();
+      const text = data2?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
+      if (text) { el.chatInput.value = text.trim(); el.chatInput.dispatchEvent(new Event('input')); }
+    } else {
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text || '';
+      if (text) { el.chatInput.value = text.trim(); el.chatInput.dispatchEvent(new Event('input')); }
+    }
+    showToast('AI description added — edit if needed, then send!');
+  } catch (err) {
+    console.warn('AI describe failed:', err);
+    showToast('Could not describe image. Please type manually.');
+  } finally {
+    el.aiDescribeBtn.disabled = false;
+    el.aiDescribeBtn.classList.remove('loading');
+    el.aiDescribeBtn.querySelector('span:nth-child(2)').textContent = 'Describe with AI';
+  }
+}
+el.aiDescribeBtn.addEventListener('click', describeImageWithAI);
+
 // Compress image to max 1024px on longest side, JPEG at 85% quality
 function compressImage(dataUrl) {
   return new Promise((resolve) => {
@@ -781,6 +1100,8 @@ function askSubject() {
           "First, briefly describe the <strong>subject</strong> of this image. What's in it?\n\n<em>For example: \"a luxury handbag\", \"a person in casual clothes\", \"a dining table with food\", \"a sports car\"</em>",
           false
         );
+        // Show AI describe button + text input
+        el.aiDescribeRow.classList.remove('hidden');
         showTextInput("Describe your subject...");
       }, 600);
     }, 400);
@@ -788,15 +1109,212 @@ function askSubject() {
 }
 
 // Step 2 — Background Color Picker
+// Step 2 — Material Picker (NEW)
+function askMaterial() {
+  hideInput();
+  el.aiDescribeRow.classList.add('hidden');
+  showTyping(() => {
+    addAgentMessage(`✅ Subject noted: <strong>${STATE.session.subject}</strong>. Now, would you like to apply a <strong>VISO material finish</strong>?`, false);
+    setTimeout(() => {
+      showMaterialPicker();
+    }, 300);
+  }, 700);
+}
+
+// Step 3 — Background Color Picker
 function askBackgroundColor() {
   hideInput();
+  const matMsg = STATE.session.material
+    ? ` Material: <strong>${STATE.session.material.code}</strong> (${STATE.session.material.name}).`
+    : '';
   showTyping(() => {
-    addAgentMessage(`Great! Subject noted: <strong>${STATE.session.subject}</strong>. Now pick a <strong>background color</strong> for the render:`, false);
+    addAgentMessage(`✅${matMsg} Now pick a <strong>background color</strong> for the render:`, false);
     setTimeout(() => {
       showColorPicker();
     }, 300);
   }, 700);
 }
+
+// ──────────────────────────────────────────────────
+//  Material Picker Logic
+// ──────────────────────────────────────────────────
+let mpSelectedMaterial = null;
+let mpActiveCategory = 'All';
+let mpCustomImageData = null;
+
+function getAllMaterials() {
+  return [...MATERIAL_LIBRARY, ...UserDB.getCustomMaterials()];
+}
+
+function getMaterialCategories() {
+  const cats = new Set();
+  getAllMaterials().forEach(m => cats.add(m.category));
+  return ['All', ...Array.from(cats)];
+}
+
+function showMaterialPicker() {
+  mpSelectedMaterial = null;
+  mpActiveCategory = 'All';
+  el.mpConfirmBtn.disabled = true;
+  el.mpSelectedInfo.classList.add('hidden');
+  el.mpCustomForm.classList.add('hidden');
+  el.mpSearch.value = '';
+  renderMaterialCategories();
+  renderMaterialGrid();
+  el.materialPickerCard.classList.remove('hidden');
+}
+
+function renderMaterialCategories() {
+  const cats = getMaterialCategories();
+  el.mpCategoryTabs.innerHTML = '';
+  cats.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'mp-cat-tab' + (cat === mpActiveCategory ? ' active' : '');
+    btn.textContent = cat;
+    btn.addEventListener('click', () => {
+      mpActiveCategory = cat;
+      renderMaterialCategories();
+      renderMaterialGrid();
+    });
+    el.mpCategoryTabs.appendChild(btn);
+  });
+}
+
+function renderMaterialGrid() {
+  const search = el.mpSearch.value.toLowerCase();
+  let materials = getAllMaterials();
+  if (mpActiveCategory !== 'All') materials = materials.filter(m => m.category === mpActiveCategory);
+  if (search) materials = materials.filter(m =>
+    m.code.toLowerCase().includes(search) ||
+    m.name.toLowerCase().includes(search) ||
+    m.texture.toLowerCase().includes(search) ||
+    m.category.toLowerCase().includes(search)
+  );
+  el.mpGrid.innerHTML = '';
+  if (materials.length === 0) {
+    el.mpGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:16px;font-size:11px;color:#B0B0B0;">No materials found</div>';
+    return;
+  }
+  materials.forEach(mat => {
+    const swatch = document.createElement('div');
+    swatch.className = 'mp-swatch' + (mat.isCustom ? ' custom-swatch' : '');
+    if (mpSelectedMaterial && ((mpSelectedMaterial.code === mat.code) || (mpSelectedMaterial.id && mpSelectedMaterial.id === mat.id))) {
+      swatch.classList.add('selected');
+    }
+    // Color or image
+    if (mat.thumb) {
+      swatch.innerHTML = `<img class="mp-swatch-img" src="${mat.thumb}" alt="${mat.code}" /><span class="mp-swatch-code">${mat.code}</span>`;
+    } else {
+      swatch.innerHTML = `<div class="mp-swatch-color" style="background:${mat.color}"></div><span class="mp-swatch-code">${mat.code}</span>`;
+    }
+    // Delete button for custom materials
+    if (mat.isCustom && mat.id) {
+      const del = document.createElement('button');
+      del.className = 'mp-delete-custom';
+      del.textContent = '×';
+      del.title = 'Remove custom material';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        UserDB.removeCustomMaterial(mat.id);
+        if (mpSelectedMaterial?.id === mat.id) { mpSelectedMaterial = null; el.mpConfirmBtn.disabled = true; el.mpSelectedInfo.classList.add('hidden'); }
+        renderMaterialGrid();
+        renderMaterialCategories();
+        showToast('Custom material removed');
+      });
+      swatch.appendChild(del);
+    }
+    swatch.addEventListener('click', () => {
+      mpSelectedMaterial = mat;
+      el.mpConfirmBtn.disabled = false;
+      // Update selection UI
+      el.mpGrid.querySelectorAll('.mp-swatch').forEach(s => s.classList.remove('selected'));
+      swatch.classList.add('selected');
+      // Show selection info
+      el.mpSelSwatch.style.background = mat.color || '#ccc';
+      if (mat.thumb) el.mpSelSwatch.style.backgroundImage = `url(${mat.thumb})`;
+      el.mpSelName.textContent = `${mat.code} — ${mat.name}`;
+      el.mpSelDesc.textContent = mat.texture;
+      el.mpSelectedInfo.classList.remove('hidden');
+    });
+    el.mpGrid.appendChild(swatch);
+  });
+}
+
+// Search
+el.mpSearch.addEventListener('input', renderMaterialGrid);
+
+// Skip material
+el.mpSkipBtn.addEventListener('click', () => {
+  STATE.session.material = null;
+  addUserMessage('No material (skipped)');
+  el.materialPickerCard.classList.add('hidden');
+  STATE.phase = 'bgcolor';
+  askBackgroundColor();
+});
+
+// Confirm material
+el.mpConfirmBtn.addEventListener('click', () => {
+  if (!mpSelectedMaterial) return;
+  STATE.session.material = mpSelectedMaterial;
+  addUserMessage(`Material: ${mpSelectedMaterial.code} (${mpSelectedMaterial.name})`);
+  el.materialPickerCard.classList.add('hidden');
+  STATE.phase = 'bgcolor';
+  askBackgroundColor();
+});
+
+// Custom material upload
+el.mpAddCustomBtn.addEventListener('click', () => {
+  el.mpCustomForm.classList.remove('hidden');
+  mpCustomImageData = null;
+  el.mpCustomName.value = '';
+  el.mpCustomDesc.value = '';
+  el.mpCustomPreview.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span>Upload swatch image</span>`;
+});
+el.mpCustomCancel.addEventListener('click', () => {
+  el.mpCustomForm.classList.add('hidden');
+});
+el.mpCustomPreview.addEventListener('click', () => el.mpCustomFile.click());
+el.mpCustomFile.addEventListener('change', () => {
+  const file = el.mpCustomFile.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    mpCustomImageData = e.target.result;
+    // Create thumbnail (80px)
+    const img = new Image();
+    img.onload = () => {
+      const cvs = document.createElement('canvas');
+      const scale = 80 / Math.max(img.width, img.height);
+      cvs.width = Math.round(img.width * scale);
+      cvs.height = Math.round(img.height * scale);
+      cvs.getContext('2d').drawImage(img, 0, 0, cvs.width, cvs.height);
+      mpCustomImageData = cvs.toDataURL('image/jpeg', 0.7);
+      el.mpCustomPreview.innerHTML = `<img src="${mpCustomImageData}" alt="Custom swatch" />`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  el.mpCustomFile.value = '';
+});
+el.mpCustomSave.addEventListener('click', () => {
+  const name = el.mpCustomName.value.trim();
+  const category = el.mpCustomCategory.value;
+  const desc = el.mpCustomDesc.value.trim();
+  if (!name) { showToast('Please enter a material code/name.'); return; }
+  const mat = {
+    code: name,
+    name: name,
+    category,
+    texture: desc || `${category} stainless steel custom finish`,
+    color: '#888888',
+    thumb: mpCustomImageData || null,
+  };
+  UserDB.addCustomMaterial(mat);
+  el.mpCustomForm.classList.add('hidden');
+  renderMaterialCategories();
+  renderMaterialGrid();
+  showToast(`Custom material "${name}" saved! ✨`);
+});
 
 // ──────────────────────────────────────────────────
 //  Full HSV Color Picker
@@ -1046,6 +1564,8 @@ async function startRendering() {
         subject: STATE.session.subject,
         bgColor: STATE.session.bgColor,
         style: STATE.session.style,
+        material: STATE.session.material?.code || null,
+        materialName: STATE.session.material?.name || null,
         adjustments: [],
         thumb,
       });
@@ -1054,6 +1574,35 @@ async function startRendering() {
         defaultBgColor: STATE.session.bgColor,
         defaultStyle: STATE.session.style,
       });
+
+      // AI Self-Assessment (async, non-blocking)
+      (async () => {
+        try {
+          const assessBody = {
+            contents: [{
+              parts: [
+                { text: `You just rendered an image. Subject: "${STATE.session.subject}", Material: "${STATE.session.material?.name || 'none'}", Style: "${STATE.session.style.split(' ').slice(0,4).join(' ')}", Background: "${STATE.session.bgColor}". Based on typical professional rendering standards, suggest ONE specific improvement for next time (max 20 words). Respond with ONLY the suggestion.` },
+              ]
+            }],
+            generationConfig: { responseModalities: ['TEXT'] }
+          };
+          const assessUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELS[0]}:generateContent?key=${STATE.apiKey}`;
+          const assessRes = await fetch(assessUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(assessBody) });
+          if (assessRes.ok) {
+            const assessData = await assessRes.json();
+            const note = assessData?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text?.trim();
+            if (note && note.length > 5 && note.length < 150) {
+              UserDB.addLearningNote(STATE.userEmail, {
+                subject: STATE.session.subject,
+                material: STATE.session.material?.code || null,
+                style: STATE.session.style.split(' ').slice(0,3).join(' '),
+                note,
+              });
+              console.log('[RenderAI] Self-assessment:', note);
+            }
+          }
+        } catch (e) { console.warn('Self-assessment skipped:', e.message); }
+      })();
     }
 
     displayResult(imageData);
@@ -1190,11 +1739,23 @@ function buildRenderPrompt(adjustNotes = '') {
       const details = insights.similarDetails.map(d => `${d.subject} (${d.style?.split(' ').slice(0,2).join(' ')})`).join(', ');
       learnedContext = `\n\nContext from previous successful renders of similar subjects: ${details}. Apply learned aesthetic preferences.`;
     }
+    // Add AI learning notes if available
+    const notes = UserDB.getLearningNotes(STATE.userEmail);
+    if (notes.length > 0) {
+      const recentNotes = notes.slice(-5).map(n => n.note).join('; ');
+      learnedContext += `\nLearned improvements from past renders: ${recentNotes}`;
+    }
+  }
+
+  // Material texture instruction
+  let materialContext = '';
+  if (STATE.session.material) {
+    materialContext = `\nMaterial Finish: Apply a ${STATE.session.material.texture} finish to the subject's surface. The material should appear as genuine ${STATE.session.material.name} (${STATE.session.material.code}) with realistic reflections, texture, and metallic properties.`;
   }
 
   return `Edit this image to create an ultra-realistic professional photograph at the highest possible resolution.
 
-Subject: ${STATE.session.subject}
+Subject: ${STATE.session.subject}${materialContext}
 Background: replace the background with a smooth, seamless solid color background, hex color ${bgHex}. No gradients, no textures — perfectly flat solid color fill extending to all edges.
 Style: ${STATE.session.style}${adj}${learnedContext}
 
@@ -1642,8 +2203,9 @@ function handleUserInput(text) {
 function processStep(userText) {
   if (STATE.phase === 'subject') {
     STATE.session.subject = userText;
-    askBackgroundColor();     // ← color picker instead of text background
-    STATE.phase = 'bgcolor';
+    el.aiDescribeRow.classList.add('hidden');
+    askMaterial();     // ← material picker step (NEW)
+    STATE.phase = 'material';
   } else if (STATE.phase === 'style-wait') {
     STATE.session.style = userText;
     startRendering();
@@ -1719,6 +2281,8 @@ function clearInput() {
   el.adjustmentRow.classList.add('hidden');
   el.colorPickerCard.classList.add('hidden');
   el.upscalePicker.classList.add('hidden');
+  el.materialPickerCard.classList.add('hidden');
+  el.aiDescribeRow.classList.add('hidden');
   // Clean up optional enter-skip listener to prevent accumulation
   el.chatInput.removeEventListener('keydown', optionalEnterSkip);
 }
@@ -2000,7 +2564,7 @@ el.nextImageBtn.addEventListener('click', () => {
   STATE.rawRenderedUrl = null;
   STATE.originalRenderedUrl = null;
   STATE.originalDisplayUrl = null;
-  STATE.session = { subject: '', bgColor: '#FFEEDC', style: '' };
+  STATE.session = { subject: '', bgColor: '#FFEEDC', style: '', material: null };
 
   showPanel('upload');
   el.chatThumb.classList.add('hidden');

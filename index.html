@@ -61,6 +61,7 @@
           <span>Sign In</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
+        <button id="forgot-password-link" class="forgot-link" type="button">Forgot Password?</button>
       </div>
 
       <!-- Sign Up Form -->
@@ -94,6 +95,24 @@
           </div>
         </div>
         <div class="auth-field">
+          <label class="input-label">Security Question</label>
+          <select id="signup-security-q" class="auth-select">
+            <option value="">Select a security question...</option>
+            <option value="pet">What is your pet's name?</option>
+            <option value="city">What city were you born in?</option>
+            <option value="color">What is your favorite color?</option>
+            <option value="car">What was your first car?</option>
+            <option value="school">What was your first school?</option>
+          </select>
+        </div>
+        <div class="auth-field">
+          <label class="input-label">Security Answer</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <input id="signup-security-a" type="text" placeholder="Your answer (case-insensitive)" autocomplete="off" spellcheck="false" />
+          </div>
+        </div>
+        <div class="auth-field">
           <label class="input-label">Gemini API Key</label>
           <div class="input-wrap">
             <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
@@ -108,6 +127,49 @@
           <span>Create Account</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
+      </div>
+
+      <!-- Forgot Password Form -->
+      <div id="auth-forgot-form" class="auth-form hidden">
+        <p class="forgot-desc">Enter your email and answer your security question to reset your password.</p>
+        <div class="auth-field">
+          <label class="input-label">Email</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <input id="forgot-email" type="email" placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+          </div>
+        </div>
+        <button id="forgot-lookup-btn" class="btn-primary small" type="button">
+          <span>Find Account</span>
+        </button>
+        <div id="forgot-question-section" class="forgot-question-section hidden">
+          <div class="auth-field">
+            <label class="input-label" id="forgot-question-label">Security Question</label>
+            <div class="input-wrap">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <input id="forgot-answer" type="text" placeholder="Your answer" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+          <div class="auth-field">
+            <label class="input-label">New Password</label>
+            <div class="input-wrap">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input id="forgot-new-password" type="password" placeholder="Min 6 characters" autocomplete="new-password" />
+            </div>
+          </div>
+          <div class="auth-field">
+            <label class="input-label">Confirm New Password</label>
+            <div class="input-wrap">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input id="forgot-confirm-password" type="password" placeholder="Repeat new password" autocomplete="new-password" />
+            </div>
+          </div>
+          <button id="forgot-reset-btn" class="btn-primary" type="button">
+            <span>Reset Password</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+          </button>
+        </div>
+        <button id="forgot-back-btn" class="forgot-link" type="button">← Back to Sign In</button>
       </div>
 
       <div id="setup-error" class="setup-error hidden"></div>
@@ -359,6 +421,66 @@
             </div>
           </div>
 
+          <!-- ── Material Picker Card ── -->
+          <div id="material-picker-card" class="material-picker-card hidden">
+            <div class="mp-header">
+              <span class="mp-title">Choose Material Finish</span>
+              <span class="ai-badge">🎨 VISO</span>
+            </div>
+            <div class="mp-search-wrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" id="mp-search" class="mp-search" placeholder="Search materials..." spellcheck="false" />
+            </div>
+            <div class="mp-category-tabs" id="mp-category-tabs"></div>
+            <div class="mp-grid-wrap">
+              <div class="mp-grid" id="mp-grid"></div>
+            </div>
+            <div class="mp-selected-info hidden" id="mp-selected-info">
+              <div class="mp-sel-swatch" id="mp-sel-swatch"></div>
+              <div class="mp-sel-details">
+                <div class="mp-sel-name" id="mp-sel-name"></div>
+                <div class="mp-sel-desc" id="mp-sel-desc"></div>
+              </div>
+            </div>
+            <div class="mp-custom-section">
+              <button id="mp-add-custom-btn" class="mp-add-custom-btn" type="button">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Custom Material
+              </button>
+            </div>
+            <div id="mp-custom-form" class="mp-custom-form hidden">
+              <input type="file" id="mp-custom-file" accept="image/*" hidden />
+              <div class="mp-custom-preview" id="mp-custom-preview">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Upload swatch image</span>
+              </div>
+              <input type="text" id="mp-custom-name" class="mp-custom-input" placeholder="Material code (e.g., SS-MY-01)" spellcheck="false" />
+              <select id="mp-custom-category" class="mp-custom-select">
+                <option value="Gold / Polished">Gold / Polished</option>
+                <option value="Gold / Brushed">Gold / Brushed</option>
+                <option value="Bronze / Antique">Bronze / Antique</option>
+                <option value="Silver / Chrome">Silver / Chrome</option>
+                <option value="Rose Gold">Rose Gold</option>
+                <option value="Copper">Copper</option>
+                <option value="Dark / Gunmetal">Dark / Gunmetal</option>
+                <option value="Blue / PVD">Blue / PVD</option>
+                <option value="Wine / Red">Wine / Red</option>
+                <option value="Green / Olive">Green / Olive</option>
+                <option value="Patterned">Patterned</option>
+                <option value="Custom" selected>Custom</option>
+              </select>
+              <input type="text" id="mp-custom-desc" class="mp-custom-input" placeholder="Texture description (e.g., brushed gold with hairline finish)" spellcheck="false" />
+              <div class="mp-custom-actions">
+                <button id="mp-custom-cancel" class="btn-ghost small" type="button">Cancel</button>
+                <button id="mp-custom-save" class="btn-primary small" type="button">Save Material</button>
+              </div>
+            </div>
+            <div class="mp-footer">
+              <button id="mp-skip-btn" class="btn-ghost-dark" type="button">Skip</button>
+              <button id="mp-confirm-btn" class="btn-action primary mp-confirm" type="button" disabled>Use Material →</button>
+            </div>
+          </div>
+
           <!-- ── AI Upscale Picker ── -->
           <div id="upscale-picker" class="upscale-picker hidden">
             <div class="up-header">
@@ -390,6 +512,15 @@
             <button id="up-export-btn" class="btn-action primary">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               AI Upscale &amp; Export
+            </button>
+          </div>
+
+          <!-- AI Describe Button -->
+          <div id="ai-describe-row" class="ai-describe-row hidden">
+            <button id="ai-describe-btn" class="ai-describe-btn" type="button">
+              <span class="ai-desc-icon">✨</span>
+              <span>Describe with AI</span>
+              <span class="ai-desc-hint">Auto-detect subject</span>
             </button>
           </div>
 
@@ -514,6 +645,37 @@
             <span class="stat-value" id="profile-stat-style">—</span>
             <span class="stat-label">Top Style</span>
           </div>
+        </div>
+      </div>
+
+      <!-- AI Learning Insights -->
+      <div class="profile-section">
+        <div class="profile-section-label">AI Learning <span class="learning-badge" id="learning-badge">🧠</span></div>
+        <div class="learning-insights" id="learning-insights">
+          <div class="learning-stats-grid">
+            <div class="learning-stat">
+              <span class="learning-icon">📊</span>
+              <div class="learning-info">
+                <div class="learning-value" id="learning-patterns-count">0</div>
+                <div class="learning-label">Patterns</div>
+              </div>
+            </div>
+            <div class="learning-stat">
+              <span class="learning-icon">🎯</span>
+              <div class="learning-info">
+                <div class="learning-value" id="learning-fav-material">—</div>
+                <div class="learning-label">Top Material</div>
+              </div>
+            </div>
+            <div class="learning-stat">
+              <span class="learning-icon">📈</span>
+              <div class="learning-info">
+                <div class="learning-value" id="learning-notes-count">0</div>
+                <div class="learning-label">Notes</div>
+              </div>
+            </div>
+          </div>
+          <div class="learning-notes-list" id="learning-notes-list"></div>
         </div>
       </div>
 
