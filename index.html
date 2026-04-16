@@ -1,13 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RenderAI — Ultra-Realistic Image Rendering Agent</title>
-  <meta name="description" content="Transform your ordinary images into ultra-realistic professional renders using Gemini AI." />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+  <meta name="description"
+    content="Transform your ordinary images into ultra-realistic professional renders using Gemini AI." />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
 
   <!-- ===== SETUP SCREEN (Auth) ===== -->
@@ -17,13 +22,14 @@
       <div class="logo">
         <div class="logo-icon">
           <svg width="28" height="20" viewBox="0 0 28 20" fill="none">
-            <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500"/>
+            <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500" />
           </svg>
         </div>
         <span class="logo-text">VISO Render</span>
       </div>
-      <h1 class="setup-title">Ultra-Realistic<br/><span class="gradient-text">Image Rendering</span></h1>
-      <p class="setup-subtitle">Transform ordinary photos into stunning professional renders with guided AI — one image at a time.</p>
+      <h1 class="setup-title">Ultra-Realistic<br /><span class="gradient-text">Image Rendering</span></h1>
+      <p class="setup-subtitle">Transform ordinary photos into stunning professional renders with guided AI — one image
+        at a time.</p>
       <div class="feature-pills">
         <span class="pill">Guided Workflow</span>
         <span class="pill">Gemini Powered</span>
@@ -42,24 +48,38 @@
         <div class="auth-field">
           <label class="input-label">Email</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            <input id="signin-email" type="email" placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            <input id="signin-email" type="email" placeholder="you@company.com" autocomplete="email"
+              spellcheck="false" />
           </div>
         </div>
         <div class="auth-field">
           <label class="input-label">Password</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
             <input id="signin-password" type="password" placeholder="••••••••" autocomplete="current-password" />
             <button id="toggle-signin-vis" class="toggle-vis" title="Show/Hide">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
           </div>
         </div>
         <label class="auth-remember"><input type="checkbox" id="signin-remember" checked /> Remember me</label>
         <button id="signin-btn" class="btn-primary">
           <span>Sign In</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
         </button>
         <button id="forgot-password-link" class="forgot-link" type="button">Forgot Password?</button>
       </div>
@@ -69,28 +89,45 @@
         <div class="auth-field">
           <label class="input-label">Full Name</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
             <input id="signup-name" type="text" placeholder="Your name" autocomplete="name" spellcheck="false" />
           </div>
         </div>
         <div class="auth-field">
           <label class="input-label">Email</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            <input id="signup-email" type="email" placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            <input id="signup-email" type="email" placeholder="you@company.com" autocomplete="email"
+              spellcheck="false" />
           </div>
         </div>
         <div class="auth-field">
           <label class="input-label">Password</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
             <input id="signup-password" type="password" placeholder="Min 6 characters" autocomplete="new-password" />
           </div>
         </div>
         <div class="auth-field">
           <label class="input-label">Confirm Password</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
             <input id="signup-confirm" type="password" placeholder="Repeat password" autocomplete="new-password" />
           </div>
         </div>
@@ -108,24 +145,40 @@
         <div class="auth-field">
           <label class="input-label">Security Answer</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <input id="signup-security-a" type="text" placeholder="Your answer (case-insensitive)" autocomplete="off" spellcheck="false" />
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <input id="signup-security-a" type="text" placeholder="Your answer (case-insensitive)" autocomplete="off"
+              spellcheck="false" />
           </div>
         </div>
         <div class="auth-field">
           <label class="input-label">Gemini API Key</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path
+                d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+            </svg>
             <input id="signup-apikey" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
             <button id="toggle-signup-key-vis" class="toggle-vis" title="Show/Hide Key">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
           </div>
-          <p class="input-hint">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank" class="hint-link">aistudio.google.com</a></p>
+          <p class="input-hint">Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank"
+              class="hint-link">aistudio.google.com</a></p>
         </div>
         <button id="signup-btn" class="btn-primary">
           <span>Create Account</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
 
@@ -135,8 +188,13 @@
         <div class="auth-field">
           <label class="input-label">Email</label>
           <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            <input id="forgot-email" type="email" placeholder="you@company.com" autocomplete="email" spellcheck="false" />
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            <input id="forgot-email" type="email" placeholder="you@company.com" autocomplete="email"
+              spellcheck="false" />
           </div>
         </div>
         <button id="forgot-lookup-btn" class="btn-primary small" type="button">
@@ -146,27 +204,44 @@
           <div class="auth-field">
             <label class="input-label" id="forgot-question-label">Security Question</label>
             <div class="input-wrap">
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
               <input id="forgot-answer" type="text" placeholder="Your answer" autocomplete="off" spellcheck="false" />
             </div>
           </div>
           <div class="auth-field">
             <label class="input-label">New Password</label>
             <div class="input-wrap">
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input id="forgot-new-password" type="password" placeholder="Min 6 characters" autocomplete="new-password" />
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <input id="forgot-new-password" type="password" placeholder="Min 6 characters"
+                autocomplete="new-password" />
             </div>
           </div>
           <div class="auth-field">
             <label class="input-label">Confirm New Password</label>
             <div class="input-wrap">
-              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <input id="forgot-confirm-password" type="password" placeholder="Repeat new password" autocomplete="new-password" />
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <input id="forgot-confirm-password" type="password" placeholder="Repeat new password"
+                autocomplete="new-password" />
             </div>
           </div>
           <button id="forgot-reset-btn" class="btn-primary" type="button">
             <span>Reset Password</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20,6 9,17 4,12" />
+            </svg>
           </button>
         </div>
         <button id="forgot-back-btn" class="forgot-link" type="button">← Back to Sign In</button>
@@ -184,7 +259,7 @@
       <div class="header-logo">
         <div class="logo-icon small">
           <svg width="20" height="14" viewBox="0 0 28 20" fill="none">
-            <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500"/>
+            <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500" />
           </svg>
         </div>
         <span>VISO Render</span>
@@ -198,20 +273,39 @@
           <span id="image-count">0</span> rendered
         </div>
         <button id="profile-btn" class="user-greeting hidden" title="Open Profile">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
           <span id="user-name-display"></span>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="opacity:.5"><polyline points="6,9 12,15 18,9"/></svg>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+            style="opacity:.5">
+            <polyline points="6,9 12,15 18,9" />
+          </svg>
         </button>
         <a href="admin.html" class="btn-ghost" title="Admin Panel" id="admin-link">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
           Admin
         </a>
         <button id="new-session-btn" class="btn-ghost" title="New Session">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+            <path d="M8 16H3v5" />
+          </svg>
           New Session
         </button>
         <button id="logout-btn" class="btn-ghost" title="Sign Out">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16,17 21,12 16,7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
           Sign Out
         </button>
       </div>
@@ -230,16 +324,17 @@
             <div class="upload-icon-wrap">
               <div class="upload-icon-ring"></div>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17,8 12,3 7,8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17,8 12,3 7,8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
             </div>
             <h3 class="upload-title">Drop your image here</h3>
             <p class="upload-sub">or <button id="browse-btn" class="link-btn">browse files</button></p>
             <p class="upload-formats">JPG, PNG, WEBP · Max 20MB</p>
             <div class="upload-tips">
-              <div class="tip-item"><span class="tip-icon">💡</span><span>Works great with products, portraits, interiors, and objects</span></div>
+              <div class="tip-item"><span class="tip-icon">💡</span><span>Works great with products, portraits,
+                  interiors, and objects</span></div>
             </div>
           </div>
         </div>
@@ -253,7 +348,11 @@
               <button class="compare-tab" data-tab="after" id="tab-after">After</button>
             </div>
             <button id="download-btn" class="btn-download" title="Download Render">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7,10 12,15 17,10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
               Download
             </button>
           </div>
@@ -266,7 +365,10 @@
               <div class="split-divider" id="split-divider">
                 <div class="divider-line"></div>
                 <div class="divider-handle">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3l-5 9 5 9"/><path d="M16 3l5 9-5 9"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M8 3l-5 9 5 9" />
+                    <path d="M16 3l5 9-5 9" />
+                  </svg>
                 </div>
               </div>
               <div class="split-label left">Original</div>
@@ -304,10 +406,18 @@
             <p id="processing-sub">Enhancing lighting, textures & depth...</p>
           </div>
           <div class="processing-steps">
-            <div class="proc-step active" id="ps-1"><div class="ps-dot"></div><span>Analyzing subject</span></div>
-            <div class="proc-step" id="ps-2"><div class="ps-dot"></div><span>Crafting prompt</span></div>
-            <div class="proc-step" id="ps-3"><div class="ps-dot"></div><span>Rendering with Gemini</span></div>
-            <div class="proc-step" id="ps-4"><div class="ps-dot"></div><span>Finalizing output</span></div>
+            <div class="proc-step active" id="ps-1">
+              <div class="ps-dot"></div><span>Analyzing subject</span>
+            </div>
+            <div class="proc-step" id="ps-2">
+              <div class="ps-dot"></div><span>Crafting prompt</span>
+            </div>
+            <div class="proc-step" id="ps-3">
+              <div class="ps-dot"></div><span>Rendering with Gemini</span>
+            </div>
+            <div class="proc-step" id="ps-4">
+              <div class="ps-dot"></div><span>Finalizing output</span>
+            </div>
           </div>
         </div>
 
@@ -327,13 +437,22 @@
           </div>
           <div class="dtb-row dtb-tools">
             <button class="dtb-tool active" id="dtb-pen" title="Pen">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
             </button>
             <button class="dtb-tool" id="dtb-eraser" title="Eraser">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 20H7L3 16l10-10 7 7-3.5 3.5"/><path d="M6.5 17.5l4-4"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M20 20H7L3 16l10-10 7 7-3.5 3.5" />
+                <path d="M6.5 17.5l4-4" />
+              </svg>
             </button>
             <button class="dtb-tool" id="dtb-clear" title="Clear all">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8,6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <polyline points="3,6 5,6 21,6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8,6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
             </button>
           </div>
         </div>
@@ -346,7 +465,7 @@
         <div class="chat-header">
           <div class="agent-avatar">
             <svg width="16" height="12" viewBox="0 0 28 20" fill="none">
-              <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500"/>
+              <polygon points="0,0 11,0 14,8 17,0 28,0 14,20" fill="#F0A500" />
             </svg>
           </div>
           <div>
@@ -405,7 +524,10 @@
                 <!-- Dynamically populated by JS -->
               </div>
               <button id="cp-save-color-btn" class="cp-save-btn" title="Save current color to palette">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
                 Save Color
               </button>
             </div>
@@ -413,7 +535,8 @@
             <div class="cp-bottom">
               <div class="cp-preview-wrap">
                 <div id="cp-preview-swatch" class="cp-preview-swatch" style="background:#FFEEDC"></div>
-                <input type="text" id="cp-hex-input" class="cp-hex-input" value="#FFEEDC" maxlength="7" spellcheck="false" />
+                <input type="text" id="cp-hex-input" class="cp-hex-input" value="#FFEEDC" maxlength="7"
+                  spellcheck="false" />
               </div>
               <button id="cp-confirm-btn" class="btn-action primary cp-confirm">
                 Use This Color →
@@ -428,8 +551,12 @@
               <span class="ai-badge">🎨 VISO</span>
             </div>
             <div class="mp-search-wrap">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              <input type="text" id="mp-search" class="mp-search" placeholder="Search materials..." spellcheck="false" />
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+              <input type="text" id="mp-search" class="mp-search" placeholder="Search materials..."
+                spellcheck="false" />
             </div>
             <div class="mp-category-tabs" id="mp-category-tabs"></div>
             <div class="mp-grid-wrap">
@@ -444,17 +571,25 @@
             </div>
             <div class="mp-custom-section">
               <button id="mp-add-custom-btn" class="mp-add-custom-btn" type="button">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
                 Add Custom Material
               </button>
             </div>
             <div id="mp-custom-form" class="mp-custom-form hidden">
               <input type="file" id="mp-custom-file" accept="image/*" hidden />
               <div class="mp-custom-preview" id="mp-custom-preview">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17,8 12,3 7,8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
                 <span>Upload swatch image</span>
               </div>
-              <input type="text" id="mp-custom-name" class="mp-custom-input" placeholder="Material code (e.g., SS-MY-01)" spellcheck="false" />
+              <input type="text" id="mp-custom-name" class="mp-custom-input"
+                placeholder="Material code (e.g., SS-MY-01)" spellcheck="false" />
               <select id="mp-custom-category" class="mp-custom-select">
                 <option value="Gold / Polished">Gold / Polished</option>
                 <option value="Gold / Brushed">Gold / Brushed</option>
@@ -469,7 +604,8 @@
                 <option value="Patterned">Patterned</option>
                 <option value="Custom" selected>Custom</option>
               </select>
-              <input type="text" id="mp-custom-desc" class="mp-custom-input" placeholder="Texture description (e.g., brushed gold with hairline finish)" spellcheck="false" />
+              <input type="text" id="mp-custom-desc" class="mp-custom-input"
+                placeholder="Texture description (e.g., brushed gold with hairline finish)" spellcheck="false" />
               <div class="mp-custom-actions">
                 <button id="mp-custom-cancel" class="btn-ghost small" type="button">Cancel</button>
                 <button id="mp-custom-save" class="btn-primary small" type="button">Save Material</button>
@@ -477,7 +613,8 @@
             </div>
             <div class="mp-footer">
               <button id="mp-skip-btn" class="btn-ghost-dark" type="button">Skip</button>
-              <button id="mp-confirm-btn" class="btn-action primary mp-confirm" type="button" disabled>Use Material →</button>
+              <button id="mp-confirm-btn" class="btn-action primary mp-confirm" type="button" disabled>Use Material
+                →</button>
             </div>
           </div>
 
@@ -510,7 +647,11 @@
             <p class="up-info">Gemini AI will enhance details, textures &amp; sharpness before scaling.</p>
 
             <button id="up-export-btn" class="btn-action primary">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7,10 12,15 17,10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
               AI Upscale &amp; Export
             </button>
           </div>
@@ -531,7 +672,10 @@
               <span class="char-count" id="char-count">0/500</span>
             </div>
             <button id="send-btn" class="send-btn" disabled>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22,2 15,22 11,13 2,9" />
+              </svg>
             </button>
           </div>
 
@@ -540,36 +684,53 @@
             <!-- Row 1: Preview + Download -->
             <div class="action-btns-row">
               <button id="preview-btn" class="btn-action secondary">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
                 Preview
               </button>
               <button id="chat-download-btn" class="btn-action secondary">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7,10 12,15 17,10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
                 Download
               </button>
             </div>
             <!-- Row 2: Upscale & Export (full width, prominent) -->
             <div class="action-btns-row">
               <button id="upscale-btn" class="btn-action teal" style="width:100%">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17,11 12,6 7,11"/><polyline points="17,18 12,13 7,18"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="17,11 12,6 7,11" />
+                  <polyline points="17,18 12,13 7,18" />
+                </svg>
                 Upscale &amp; Export
               </button>
             </div>
             <!-- Row 3: Adjust + Next Image -->
             <div class="action-btns-row">
               <button id="adjust-btn" class="btn-action secondary">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
                 Adjustments
               </button>
               <button id="next-image-btn" class="btn-action primary">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
                 Next
               </button>
             </div>
             <!-- Row 4: Back to first render (only after adjustment) -->
             <div id="back-original-row" class="action-btns-row hidden">
               <button id="back-original-btn" class="btn-action back">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15,18 9,12 15,6"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="15,18 9,12 15,6" />
+                </svg>
                 Back to First Render
               </button>
             </div>
@@ -578,7 +739,9 @@
           <!-- Adjustment Input -->
           <div id="adjustment-row" class="adjustment-row hidden">
             <div class="text-input-wrap">
-              <textarea id="adjustment-input" placeholder="Describe what to change (e.g., make lighting warmer, change background to sunset)..." rows="2" maxlength="600"></textarea>
+              <textarea id="adjustment-input"
+                placeholder="Describe what to change (e.g., make lighting warmer, change background to sunset)..."
+                rows="2" maxlength="600"></textarea>
             </div>
             <div class="adj-buttons">
               <button id="cancel-adj-btn" class="btn-ghost small">Cancel</button>
@@ -598,7 +761,10 @@
       <div class="profile-header">
         <h2 class="profile-title">My Profile</h2>
         <button id="profile-close-btn" class="profile-close" title="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
 
@@ -618,13 +784,21 @@
         <div class="profile-key-row">
           <input type="password" id="profile-api-key" class="profile-key-input" readonly />
           <button id="profile-key-toggle" class="profile-key-btn" title="Show/Hide">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
           </button>
           <button id="profile-key-edit" class="profile-key-btn" title="Edit Key">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
           </button>
           <button id="profile-key-save" class="profile-key-btn accent hidden" title="Save Key">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20,6 9,17 4,12" />
+            </svg>
           </button>
         </div>
       </div>
@@ -696,4 +870,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>
